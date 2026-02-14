@@ -116,8 +116,21 @@ export async function POST(request: NextRequest) {
     };
 
     // —— Step C: Deduce via AWS Bedrock (Claude 3.5 Sonnet) ——
+    const bedrockKey = process.env.AWS_BEDROCK_KEY;
+    if (!bedrockKey) {
+      return NextResponse.json(
+        { error: "AWS_BEDROCK_KEY not configured" },
+        { status: 500 }
+      );
+    }
     const region = process.env.AWS_REGION ?? "us-east-1";
-    const client = new BedrockRuntimeClient({ region });
+    const client = new BedrockRuntimeClient({
+      region,
+      credentials: {
+        accessKeyId: bedrockKey,
+        secretAccessKey: bedrockKey,
+      },
+    });
 
     const imageHistoryText = [
       knowledgeGraphTitle ? `Identified subject: ${knowledgeGraphTitle}` : "",
