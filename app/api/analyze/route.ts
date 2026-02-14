@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 
-const SERPAPI_BASE = "https://serpapi.com/search";
-const BEDROCK_MODEL_ID = "anthropic.claude-3-5-sonnet-20241022-v2:0";
+const SERPAPI_BASE = "https://serpapi.com/search.json";
+// Use inference profile ID for on-demand; foundation model ID alone is not supported.
+// Claude Sonnet 4 — callable from us-east-1, us-east-2, us-west-2, ap-northeast-1, eu-west-1.
+const BEDROCK_MODEL_ID = "global.anthropic.claude-sonnet-4-20250514-v1:0";
 
 export type AnalyzeBody = {
   imageUrl: string;
@@ -75,7 +77,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const apiKey = process.env.SERPAPI_KEY;
+    const apiKey = process.env.SERPAPI_KEY?.trim();
     if (!apiKey) {
       return NextResponse.json(
         { error: "SERPAPI_KEY not configured" },
@@ -90,11 +92,29 @@ export async function POST(request: NextRequest) {
       api_key: apiKey,
       type: "all",
     });
-    const serpRes = await axios.get<Record<string, unknown>>(
-      `${SERPAPI_BASE}?${serpParams.toString()}`,
-      { timeout: 30000 }
-    );
-    const serpData = serpRes.data;
+    let serpData: Record<string, unknown>;
+    try {
+      const serpRes = await axios.get<Record<string, unknown>>(
+        `${SERPAPI_BASE}?${serpParams.toString()}`,
+        { timeout: 30000 }
+      );
+      serpData = serpRes.data;
+    } catch (serpErr: unknown) {
+      if (axios.isAxiosError(serpErr) && serpErr.response?.status === 401) {
+        const serpMessage =
+          (serpErr.response?.data as { error?: string } | undefined)?.error ??
+          "No valid API key provided.";
+        return NextResponse.json(
+          {
+            error: "SerpApi authentication failed (401).",
+            detail: serpMessage,
+            hint: "Confirm SERPAPI_KEY in .env.local matches the key at https://serpapi.com/manage-api-key (no quotes, no trailing space). Restart the dev server after changing .env.local.",
+          },
+          { status: 500 }
+        );
+      }
+      throw serpErr;
+    }
 
     const searchMeta = serpData.search_metadata as Record<string, unknown> | undefined;
     const status = searchMeta?.status;
@@ -116,10 +136,15 @@ export async function POST(request: NextRequest) {
     };
 
     // —— Step C: Deduce via AWS Bedrock (Claude 3.5 Sonnet) ——
-    const bedrockKey = process.env.AWS_BEDROCK_KEY;
-    if (!bedrockKey) {
+    // AWS IAM requires two separate values: Access Key ID (e.g. AKIA...) and Secret Access Key.
+    const accessKeyId = process.env.AWS_BEDROCK_ACCESS_KEY_ID?.trim() ?? process.env.AWS_ACCESS_KEY_ID?.trim();
+    const secretAccessKey = process.env.AWS_BEDROCK_SECRET_ACCESS_KEY?.trim() ?? process.env.AWS_BEDROCK_KEY?.trim();
+    if (!accessKeyId || !secretAccessKey) {
       return NextResponse.json(
-        { error: "AWS_BEDROCK_KEY not configured" },
+        {
+          error: "AWS Bedrock credentials not configured.",
+          hint: "Set AWS_BEDROCK_ACCESS_KEY_ID and AWS_BEDROCK_SECRET_ACCESS_KEY in .env.local (or AWS_ACCESS_KEY_ID and AWS_BEDROCK_KEY for the secret). Get both from IAM → Security credentials → Access keys.",
+        },
         { status: 500 }
       );
     }
@@ -127,8 +152,8 @@ export async function POST(request: NextRequest) {
     const client = new BedrockRuntimeClient({
       region,
       credentials: {
-        accessKeyId: bedrockKey,
-        secretAccessKey: bedrockKey,
+        accessKeyId,
+        secretAccessKey,
       },
     });
 
