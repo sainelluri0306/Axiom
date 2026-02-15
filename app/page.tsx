@@ -1,12 +1,104 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import PaperTrailsLogo from "@/components/PaperTrailsLogo";
 import TextEncrypted from "@/components/TextEncrypted";
 import skyline from "@/assets/skyline.jpg";
 import magnifyingGlassGif from "@/assets/icons8-magnifying-glass.gif";
 import trueSvg from "@/assets/true.svg";
 import falseSvg from "@/assets/false.svg";
+
+/** Rounded tooltip locked above the trigger element on hover. */
+function SectionTooltip({
+  content,
+  children,
+  className,
+}: {
+  content: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const [visible, setVisible] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const updateRect = () => {
+    if (triggerRef.current) setRect(triggerRef.current.getBoundingClientRect());
+  };
+
+  useEffect(() => {
+    if (!visible) return;
+    updateRect();
+    window.addEventListener("scroll", updateRect, true);
+    window.addEventListener("resize", updateRect);
+    return () => {
+      window.removeEventListener("scroll", updateRect, true);
+      window.removeEventListener("resize", updateRect);
+    };
+  }, [visible]);
+
+  useEffect(() => {
+    return () => {
+      if (leaveTimeoutRef.current) clearTimeout(leaveTimeoutRef.current);
+    };
+  }, []);
+
+  const tooltipEl =
+    visible && rect ? (
+      <div
+        className={`fixed pointer-events-none z-[100] px-3 py-2 rounded-xl text-zinc-100 text-xs leading-relaxed shadow-xl border border-white/10 max-w-[260px] bg-zinc-900/80 backdrop-blur-xl ${
+          isLeaving ? "tooltip-leave" : "tooltip-enter"
+        }`}
+        style={{
+          left: rect.left + rect.width / 2,
+          top: rect.top - 8,
+          transform: "translate(-50%, -100%)",
+        }}
+      >
+        {content}
+      </div>
+    ) : null;
+
+  return (
+    <>
+      <span className={className}>
+        <span
+          ref={triggerRef}
+          className="inline-block"
+          onMouseEnter={() => {
+            if (leaveTimeoutRef.current) {
+              clearTimeout(leaveTimeoutRef.current);
+              leaveTimeoutRef.current = null;
+            }
+            setIsLeaving(false);
+            if (triggerRef.current) {
+              setRect(triggerRef.current.getBoundingClientRect());
+              setVisible(true);
+            }
+          }}
+          onMouseLeave={() => {
+            if (leaveTimeoutRef.current) clearTimeout(leaveTimeoutRef.current);
+            setIsLeaving(true);
+            leaveTimeoutRef.current = setTimeout(() => {
+              setVisible(false);
+              setRect(null);
+              setIsLeaving(false);
+              leaveTimeoutRef.current = null;
+            }, 180);
+          }}
+        >
+          {children}
+        </span>
+      </span>
+      {typeof document !== "undefined" && tooltipEl
+        ? createPortal(tooltipEl, document.body)
+        : tooltipEl}
+    </>
+  );
+}
 
 type TimelineNode = {
   label: string;
@@ -727,9 +819,12 @@ export default function Home() {
                       <div
                         className={`rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6 ${stats.isTrueVerdict ? "timeline-verdict-true" : stats.isUnverifiable ? "" : "timeline-verdict-false"}`}
                       >
-                        <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-4 font-bold">
+                        <SectionTooltip
+                          content="Chronological history of the media: when and where it appeared, from primary sources. Each node has a date, label, description, and source link."
+                          className="text-xs uppercase tracking-wider text-zinc-500 block mb-4 font-bold"
+                        >
                           Timeline
-                        </span>
+                        </SectionTooltip>
                         <div
                           ref={resultIdx === 0 ? timelineContainerRef : null}
                           className="relative flex flex-col pl-0 timeline-container"
@@ -841,9 +936,12 @@ export default function Home() {
                           </div>
                         </div>
                         <div className="relevant-sources w-full min-w-0 overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
-                          <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-3">
+                          <SectionTooltip
+                            content="Web, news, and search results used as evidence for this analysis. Links open the original pages."
+                            className="text-xs uppercase tracking-wider text-zinc-500 block mb-3"
+                          >
                             Relevant sources
-                          </span>
+                          </SectionTooltip>
                           {otherSources.length > 0 ? (
                             <ul className="min-w-0 w-full space-y-2 overflow-hidden">
                               {otherSources.slice(0, 10).map((p, i) => {
@@ -883,9 +981,12 @@ export default function Home() {
                       {/* Right 1/3: Score | About this image | Cross-examination */}
                       <div className="flex flex-col gap-6">
                         <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
-                          <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-2">
+                          <SectionTooltip
+                            content="Degree of manipulation or accuracy, and the model's confidence. Higher % with 'false / misleading' means more manipulated; higher % with 'accurate' means the content checks out."
+                            className="text-xs uppercase tracking-wider text-zinc-500 block mb-2"
+                          >
                             Score
-                          </span>
+                          </SectionTooltip>
                           {stats.isUnverifiable ? (
                             <p className="text-2xl font-display text-zinc-500">—</p>
                           ) : (
@@ -898,9 +999,12 @@ export default function Home() {
 
                         {result.aboutThisImage && (result.aboutThisImage.headerImage || result.aboutThisImage.headerTitle) && (
                           <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
-                            <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-3">
+                            <SectionTooltip
+                              content="Google Lens 'About This Image' summary: where this image appears online and what the index says about it. Shown only for image investigations."
+                              className="text-xs uppercase tracking-wider text-zinc-500 block mb-3"
+                            >
                               About this image
-                            </span>
+                            </SectionTooltip>
                             {result.aboutThisImage.headerTitle && (
                               <p className="text-zinc-100 font-medium mb-2">
                                 {result.aboutThisImage.headerTitle}
@@ -936,9 +1040,12 @@ export default function Home() {
                         )}
 
                         <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
-                          <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-3">
+                          <SectionTooltip
+                            content="Fact-check articles from PolitiFact, Snopes, AFP, and similar publishers that address this claim or topic. Use these to verify the verdict."
+                            className="text-xs uppercase tracking-wider text-zinc-500 block mb-3"
+                          >
                             Cross-examination
-                          </span>
+                          </SectionTooltip>
                           {factCheckSources.length > 0 ? (
                             <ul className="min-w-0 w-full space-y-2 overflow-hidden">
                               {factCheckSources.map((p, i) => {
