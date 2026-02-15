@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 
 type PageResultItem = { date: string; link: string; title: string; snippet: string | null };
@@ -40,6 +40,8 @@ export default function TestPage() {
   const [rawResponse, setRawResponse] = useState<{ status: number; ok: boolean; body: AnalyzeBody & { error?: string } } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [imageViewerUrl, setImageViewerUrl] = useState<string | null>(null);
+  const timelineContainerRef = useRef<HTMLDivElement>(null);
+  const firstMarkerRef = useRef<HTMLDivElement>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -62,6 +64,51 @@ export default function TestPage() {
       setLoading(false);
     }
   }
+
+  // Measure the first marker's position and set CSS variable for line alignment
+  useEffect(() => {
+    const updateLinePosition = () => {
+      if (firstMarkerRef.current && timelineContainerRef.current) {
+        const markerRect = firstMarkerRef.current.getBoundingClientRect();
+        const containerRect = timelineContainerRef.current.getBoundingClientRect();
+        const markerCenterX = markerRect.left + markerRect.width / 2;
+        const lineLeft = markerCenterX - containerRect.left;
+        timelineContainerRef.current.style.setProperty('--timeline-line-left', `${lineLeft}px`);
+      }
+    };
+
+    // Initial measurement with delay to ensure layout is complete
+    const timeoutId = setTimeout(() => {
+      requestAnimationFrame(updateLinePosition);
+    }, 100);
+
+    // Re-measure on resize
+    const handleResize = () => {
+      requestAnimationFrame(updateLinePosition);
+    };
+    window.addEventListener('resize', handleResize);
+
+    // Use MutationObserver to detect when timeline content changes
+    const observer = timelineContainerRef.current
+      ? new MutationObserver(() => {
+          requestAnimationFrame(updateLinePosition);
+        })
+      : null;
+
+    if (timelineContainerRef.current && observer) {
+      observer.observe(timelineContainerRef.current, {
+        childList: true,
+        subtree: true,
+        attributes: false,
+      });
+    }
+
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('resize', handleResize);
+      if (observer) observer.disconnect();
+    };
+  }, [rawResponse]);
 
   return (
     <div className="min-h-screen bg-noir-bg text-zinc-100 p-6 font-sans">
@@ -157,7 +204,7 @@ export default function TestPage() {
           <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-6 font-bold">
             Timeline — Image Story
           </span>
-          <div className="relative flex flex-col pl-0 timeline-container">
+          <div ref={timelineContainerRef} className="relative flex flex-col pl-0 timeline-container">
             {/* Timeline lines are now drawn via CSS pseudo-elements on marker columns */}
             {/* Regular line is ::after on first marker column, bold line is ::before */}
             {rawResponse?.ok && rawResponse.body?.timeline && rawResponse.body.timeline.length > 0 ? (
@@ -185,16 +232,10 @@ export default function TestPage() {
                     </div>
                     <div className="relative flex justify-center pt-1.5 shrink-0">
                       <div
+                        ref={i === 0 ? firstMarkerRef : null}
                         className="relative z-10 h-3 w-3 shrink-0 rounded-full border-2 border-zinc-500 bg-noir-bg timeline-marker"
                         aria-hidden
                       />
-                      {i === nodes.length - 1 && (
-                        <div className="absolute left-full ml-1 top-1/2 -translate-y-1/2 z-20 timeline-pointer" aria-hidden>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" className="text-white">
-                            <path d="M8 5v14l11-7z" fill="currentColor" />
-                          </svg>
-                        </div>
-                      )}
                     </div>
                     <div className="min-w-0 pl-2">
                       <p className="text-xs uppercase tracking-wider text-zinc-500 mb-0.5">
@@ -266,6 +307,7 @@ export default function TestPage() {
                   </div>
                   <div className="relative flex justify-center pt-1.5 shrink-0">
                     <div
+                      ref={!rawResponse?.ok || !rawResponse.body?.timeline || rawResponse.body.timeline.length === 0 ? firstMarkerRef : null}
                       className="relative z-10 h-3 w-3 shrink-0 rounded-full border-2 border-zinc-500 bg-noir-bg timeline-marker"
                       aria-hidden
                     />
