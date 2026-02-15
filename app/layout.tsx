@@ -36,7 +36,7 @@ export default function RootLayout({
       <body className="font-sans antialiased bg-noir-bg text-zinc-100 min-h-screen flex flex-col">
         <div className="flex-1 pb-14">{children}</div>
         <footer className="fixed bottom-0 left-0 right-0 z-30 py-3 text-center text-sm text-zinc-400 bg-black/40 backdrop-blur-sm">
-          Made with ❤️ by Team Axiom @ Hack_NCState 2026
+          Made with 🤍 by Team Axiom @ Hack_NCState 2026
         </footer>
       </body>
     </html>

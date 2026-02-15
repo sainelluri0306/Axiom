@@ -393,7 +393,7 @@ export default function Home() {
       verdict.toUpperCase().includes("INVALID");
     const displayPct = isTrueVerdict ? 100 - score : score;
     const scoreLabel = isTrueVerdict ? "Accuracy" : "False / misleading";
-    return { isUnverifiable, displayPct, scoreLabel };
+    return { isTrueVerdict, isUnverifiable, displayPct, scoreLabel };
   }
 
   return (
@@ -416,7 +416,12 @@ export default function Home() {
                   underlineDuration={0.7}
                 />
               </h1>
-              <p className="font-jost mx-auto max-w-2xl px-4 text-base tracking-wider text-zinc-500 sm:text-lg">
+              <p
+                className="font-jost mx-auto max-w-2xl px-4 text-base tracking-wider text-zinc-500 sm:text-lg"
+                style={{
+                  textShadow: "0 0 10px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.7), 0 0 40px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.8)",
+                }}
+              >
                 <TextEncrypted
                   text="Don't just spot the fake. Prove the origin."
                   holdEncryptedMs={1000}
@@ -620,7 +625,7 @@ export default function Home() {
                       {/* Left 1/3: Timeline */}
                       <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
                         <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-4 font-bold">
-                          Timeline — findings
+                          Timeline
                         </span>
                         <div
                           ref={resultIdx === 0 ? timelineContainerRef : null}
@@ -689,12 +694,48 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {/* Middle 1/3: Verdict (no %) + Sources */}
+                      {/* Middle 1/3: Verdict (stamp) + Sources */}
                       <div className="flex min-w-0 flex-col gap-6">
                         <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
-                          <p className="text-lg font-medium text-white mb-2">
-                            {result.verdict}
-                          </p>
+                          <div className="mb-3">
+                            {stats.isUnverifiable ? (
+                              <span
+                                className="inline-block px-5 py-2.5 text-xl font-bold uppercase tracking-[0.2em] border-2 border-dashed border-amber-500/80 text-amber-400/90 -rotate-1"
+                                style={{
+                                  fontFamily: "var(--font-display), 'Special Elite', monospace",
+                                  boxShadow: "inset 0 0 0 1px rgba(245, 158, 11, 0.15), 0 0 8px rgba(245, 158, 11, 0.1)",
+                                  background: "linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, transparent 50%)",
+                                  textShadow: "0 0 1px rgba(245, 158, 11, 0.5), 1px 1px 0 rgba(0,0,0,0.2)",
+                                }}
+                              >
+                                UNVERIFIED
+                              </span>
+                            ) : stats.isTrueVerdict ? (
+                              <span
+                                className="inline-block px-5 py-2.5 text-xl font-bold uppercase tracking-[0.2em] border-2 border-dashed border-emerald-500/90 text-emerald-400 -rotate-2"
+                                style={{
+                                  fontFamily: "var(--font-display), 'Special Elite', monospace",
+                                  boxShadow: "inset 0 0 0 1px rgba(16, 185, 129, 0.15), 0 0 8px rgba(16, 185, 129, 0.15)",
+                                  background: "linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, transparent 50%)",
+                                  textShadow: "0 0 1px rgba(16, 185, 129, 0.6), 1px 1px 0 rgba(0,0,0,0.2)",
+                                }}
+                              >
+                                TRUE
+                              </span>
+                            ) : (
+                              <span
+                                className="inline-block px-5 py-2.5 text-xl font-bold uppercase tracking-[0.2em] border-2 border-dashed border-red-500/90 text-red-400 rotate-2"
+                                style={{
+                                  fontFamily: "var(--font-display), 'Special Elite', monospace",
+                                  boxShadow: "inset 0 0 0 1px rgba(239, 68, 68, 0.15), 0 0 8px rgba(239, 68, 68, 0.15)",
+                                  background: "linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, transparent 50%)",
+                                  textShadow: "0 0 1px rgba(239, 68, 68, 0.6), 1px 1px 0 rgba(0,0,0,0.2)",
+                                }}
+                              >
+                                FALSE
+                              </span>
+                            )}
+                          </div>
                           {stats.isUnverifiable ? (
                             <p className="text-sm text-amber-400/90 font-medium">
                               Not enough information to verify
@@ -755,7 +796,7 @@ export default function Home() {
                             <p className="text-2xl font-display text-zinc-500">—</p>
                           ) : (
                             <>
-                              <p className="text-3xl font-display text-white">{stats.displayPct}%</p>
+                              <p className="text-4xl sm:text-5xl font-display font-black text-white tracking-tight">{stats.displayPct}%</p>
                               <p className="text-xs text-zinc-500 mt-1">{stats.scoreLabel}</p>
                             </>
                           )}

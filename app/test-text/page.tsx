@@ -185,7 +185,7 @@ export default function TestTextPage() {
               {/* Timeline — same as test page */}
               <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6">
                 <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-6 font-bold">
-                  Timeline — findings
+                  Timeline
                 </span>
                 <div ref={timelineContainerRef} className="relative flex flex-col pl-0 timeline-container">
                   {rawResponse.body?.timeline && rawResponse.body.timeline.length > 0 ? (

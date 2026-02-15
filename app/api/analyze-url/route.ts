@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
+import { getBackboardSecondOpinion } from "@/lib/backboard";
 
 const SERPAPI_BASE = "https://serpapi.com/search.json";
 const FACT_CHECK_API = "https://factchecktools.googleapis.com/v1alpha1/claims:search";
@@ -68,6 +69,44 @@ export type TimelineNode = {
   description: string;
   link: string;
 };
+
+/** Shorten date to "FEB 13" style so it fits in the timeline date box. */
+function formatTimelineDate(s: string): string {
+  if (!s || s === "N/A") return "N/A";
+  const raw = s.trim();
+  const months: Record<string, string> = {
+    january: "JAN", february: "FEB", march: "MAR", april: "APR", may: "MAY", june: "JUN",
+    july: "JUL", august: "AUG", september: "SEP", october: "OCT", november: "NOV", december: "DEC",
+    jan: "JAN", feb: "FEB", mar: "MAR", apr: "APR", jun: "JUN", jul: "JUL",
+    aug: "AUG", sep: "SEP", oct: "OCT", nov: "NOV", dec: "DEC",
+  };
+  const lower = raw.toLowerCase();
+  // "Early February 2023" -> "EARLY FEB"
+  const earlyLate = /^(early|late|mid)\s+(\w+)/i.exec(lower);
+  if (earlyLate) {
+    const mon = months[earlyLate[2]];
+    if (mon) return `${earlyLate[1].toUpperCase()} ${mon}`;
+  }
+  // ISO: 2023-02-13
+  const iso = /(\d{4})-(\d{1,2})-(\d{1,2})/.exec(raw);
+  if (iso) {
+    const m = ["", "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"][parseInt(iso[2], 10)];
+    if (m) return `${m} ${parseInt(iso[3], 10)}`;
+  }
+  // "February 13, 2023" or "Feb 13" or "February 12-13, 2023"
+  for (const [name, abbr] of Object.entries(months)) {
+    const re = new RegExp(`${name}\\s*(\\d{1,2})(?:\\s*-\\s*(\\d{1,2}))?(?:,\\s*\\d{4})?`, "i");
+    const m = raw.match(re);
+    if (m) {
+      if (m[2]) return `${abbr} ${m[1]}-${m[2]}`;
+      return `${abbr} ${m[1]}`;
+    }
+  }
+  // Already short like "FEB 13" - return as-is if under 15 chars
+  if (raw.length <= 14) return raw;
+  // Fallback: truncate
+  return raw.slice(0, 12).trim();
+}
 
 export type UrlAnalysisResult = {
   verdict: string;
@@ -660,12 +699,15 @@ Return ONLY valid JSON, no markdown. Use this exact structure:
         (t): t is Record<string, unknown> =>
           t != null && typeof t === "object"
       )
-      .map((t) => ({
-        label: typeof t.label === "string" ? t.label : "Event",
-        date: typeof t.date === "string" ? t.date : "N/A",
-        description: typeof t.description === "string" ? t.description : "",
-        link: typeof t.link === "string" ? t.link : "",
-      }));
+      .map((t) => {
+        const dateStr = typeof t.date === "string" ? t.date : "N/A";
+        return {
+          label: typeof t.label === "string" ? t.label : "Event",
+          date: formatTimelineDate(dateStr),
+          description: typeof t.description === "string" ? t.description : "",
+          link: typeof t.link === "string" ? t.link : "",
+        };
+      });
 
     // Override UNVERIFIED when we detect a fact-check verdict from PolitiFact/Snopes
     const detectedVerdict = detectFactCheckVerdict(url, scraped);
@@ -712,6 +754,24 @@ Return ONLY valid JSON, no markdown. Use this exact structure:
         score = snippetVerdict.score;
         if (!explanation) {
           explanation = `Fact-check search results indicate this has been rated ${snippetVerdict.verdict}.`;
+        }
+      }
+    }
+
+    // Backboard second opinion: only when still UNVERIFIED
+    if (verdict.toUpperCase().includes("UNVERIFIED")) {
+      const urlClaim = userClaim || `${scraped.title || ""} ${scraped.description || ""}`.trim().slice(0, 300) || url;
+      const contextSummary = [searchContextText, factCheckContext].filter(Boolean).join("\n");
+      const backboard = await getBackboardSecondOpinion(
+        urlClaim,
+        contextSummary || "No search results.",
+        process.env.BACKBOARD_API_KEY?.trim()
+      );
+      if (backboard) {
+        verdict = backboard.verdict;
+        score = backboard.score;
+        if (!explanation) {
+          explanation = `Second-opinion analysis suggests ${backboard.verdict}.`;
         }
       }
     }

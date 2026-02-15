@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
+import { getBackboardSecondOpinion } from "@/lib/backboard";
 
 const SERPAPI_BASE = "https://serpapi.com/search.json";
 const FACT_CHECK_API = "https://factchecktools.googleapis.com/v1alpha1/claims:search";
@@ -401,6 +402,22 @@ Return ONLY valid JSON, no markdown. Use this exact structure:
         score = snippetVerdict.score;
         if (!explanation) {
           explanation = `Fact-check search results indicate this claim has been rated ${snippetVerdict.verdict}.`;
+        }
+      }
+    }
+
+    // Backboard second opinion: only when still UNVERIFIED (no extra delay for TRUE/FALSE)
+    if (verdict.toUpperCase().includes("UNVERIFIED")) {
+      const backboard = await getBackboardSecondOpinion(
+        claim,
+        searchContextText || factCheckContext || "No search results.",
+        process.env.BACKBOARD_API_KEY?.trim()
+      );
+      if (backboard) {
+        verdict = backboard.verdict;
+        score = backboard.score;
+        if (!explanation) {
+          explanation = `Second-opinion analysis suggests ${backboard.verdict}.`;
         }
       }
     }
