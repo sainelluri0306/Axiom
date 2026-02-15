@@ -2,6 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Page scrollbar — dark, thin, matches theme */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(113, 113, 122, 0.6) transparent;
+}
+html::-webkit-scrollbar {
+  width: 8px;
+}
+html::-webkit-scrollbar-track {
+  background: transparent;
+}
+html::-webkit-scrollbar-thumb {
+  background: rgba(113, 113, 122, 0.5);
+  border-radius: 4px;
+}
+html::-webkit-scrollbar-thumb:hover {
+  background: rgba(113, 113, 122, 0.7);
+}
+
 /* Premium black — clean, luxurious */
 .noir-bg-base {
   background: #050506;
@@ -32,6 +51,28 @@
   box-shadow: none !important;
 }
 
+/* Hero textarea: 1 line min, 6 lines max, then scroll + dark scrollbar */
+.hero-textarea {
+  min-height: 2.5rem;
+  max-height: 9rem;
+  line-height: 1.5rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(113, 113, 122, 0.6) transparent;
+}
+.hero-textarea::-webkit-scrollbar {
+  width: 6px;
+}
+.hero-textarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+.hero-textarea::-webkit-scrollbar-thumb {
+  background: rgba(113, 113, 122, 0.5);
+  border-radius: 3px;
+}
+.hero-textarea::-webkit-scrollbar-thumb:hover {
+  background: rgba(113, 113, 122, 0.7);
+}
+
 /* Smooth transitions */
 button,
 a,
@@ -52,4 +93,12 @@ select {
 /* No strong border glow — subtle edge only (avoids “highlight” look) */
 .gradient-border-glow {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+/* Chatbot-style input box — minimal, modern, dark */
+.chat-input-box {
+  border-radius: 1rem;
+  background: rgba(24, 24, 27, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }

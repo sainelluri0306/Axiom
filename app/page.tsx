@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Nav from "@/components/Nav";
-import HeroInput from "@/components/HeroInput";
 
 type TimelineNode = {
   label: string;
@@ -29,6 +28,72 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  /* Chatbot-style hero input: image + text */
+  const [heroImagePreview, setHeroImagePreview] = useState<string | null>(null);
+  const [heroImageSourceUrl, setHeroImageSourceUrl] = useState<string | null>(null);
+  const [heroText, setHeroText] = useState("");
+  const heroFileInputRef = useRef<HTMLInputElement>(null);
+  const heroTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  /* Auto-grow textarea: 1 line when empty, up to 6 lines then scroll */
+  useEffect(() => {
+    const ta = heroTextareaRef.current;
+    if (!ta) return;
+    if (!heroText.trim()) {
+      ta.style.height = "";
+      ta.style.overflowY = "";
+      return;
+    }
+    ta.style.height = "auto";
+    const lineHeight = 24;
+    const minH = lineHeight;
+    const maxH = lineHeight * 6;
+    const h = Math.min(maxH, Math.max(minH, ta.scrollHeight));
+    ta.style.height = `${h}px`;
+    ta.style.overflowY = ta.scrollHeight > maxH ? "scroll" : "hidden";
+  }, [heroText]);
+
+  function isImageUrl(s: string): boolean {
+    const t = s.trim();
+    return /^https?:\/\/\S+$/i.test(t) && t.length < 2048;
+  }
+
+  function handleHeroImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (heroImagePreview?.startsWith("blob:")) URL.revokeObjectURL(heroImagePreview);
+    setHeroImagePreview(URL.createObjectURL(file));
+    setHeroImageSourceUrl(null);
+  }
+
+  function removeHeroImage() {
+    if (heroImagePreview?.startsWith("blob:")) URL.revokeObjectURL(heroImagePreview);
+    setHeroImagePreview(null);
+    setHeroImageSourceUrl(null);
+    if (heroFileInputRef.current) heroFileInputRef.current.value = "";
+  }
+
+  function handleHeroPaste(e: React.ClipboardEvent) {
+    const dt = e.clipboardData;
+    if (!dt) return;
+    if (dt.files?.length) {
+      const file = dt.files[0];
+      if (!file.type.startsWith("image/")) return;
+      e.preventDefault();
+      if (heroImagePreview?.startsWith("blob:")) URL.revokeObjectURL(heroImagePreview);
+      setHeroImagePreview(URL.createObjectURL(file));
+      setHeroImageSourceUrl(null);
+      return;
+    }
+    const text = dt.getData("text/plain")?.trim();
+    if (text && isImageUrl(text)) {
+      e.preventDefault();
+      if (heroImagePreview?.startsWith("blob:")) URL.revokeObjectURL(heroImagePreview);
+      setHeroImagePreview(text);
+      setHeroImageSourceUrl(text);
+    }
+  }
 
   async function handleInvestigate(e: React.FormEvent) {
     e.preventDefault();
@@ -87,8 +152,88 @@ export default function Home() {
                 </p>
               </header>
 
-              <div className="mt-10 w-full max-w-2xl sm:mt-12">
-                <HeroInput />
+              {/* Chatbot-style input: image preview + text + bottom bar */}
+              <div
+                className="chat-input-box mt-10 w-full max-w-2xl sm:mt-12"
+                onPaste={handleHeroPaste}
+              >
+                <input
+                  ref={heroFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  aria-hidden
+                  onChange={handleHeroImageChange}
+                />
+                <div className="flex flex-col gap-3 p-3">
+                  {heroImagePreview && (
+                    <div className="group relative w-fit">
+                      <img
+                        src={heroImagePreview}
+                        alt="Upload preview"
+                        className="h-24 w-auto rounded-lg object-cover sm:h-28"
+                      />
+                      <div className="absolute bottom-0 left-0 right-0 rounded-b-lg bg-black/85 px-2 py-1.5 opacity-0 transition group-hover:opacity-100">
+                        <span className="block truncate text-xs text-white" title={heroImageSourceUrl ?? "Uploaded image"}>
+                          {heroImageSourceUrl ?? "Uploaded image"}
+                        </span>
+                      </div>
+                      <div className="absolute right-1 top-1 z-10 flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => heroFileInputRef.current?.click()}
+                          className="flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-zinc-800 transition hover:bg-white"
+                          aria-label="Edit image"
+                        >
+                          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={removeHeroImage}
+                          className="flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-zinc-800 transition hover:bg-white"
+                          aria-label="Remove image"
+                        >
+                          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <textarea
+                    ref={heroTextareaRef}
+                    value={heroText}
+                    onChange={(e) => setHeroText(e.target.value)}
+                    onPaste={handleHeroPaste}
+                    placeholder="Ask Paper Trails to trace origin..."
+                    rows={1}
+                    className="hero-input hero-textarea w-full resize-none bg-transparent text-sm text-white placeholder-zinc-500 focus:outline-none"
+                  />
+                </div>
+                <div className="flex items-center justify-between border-t border-white/[0.06] px-3 py-2">
+                  <button
+                    type="button"
+                    onClick={() => heroFileInputRef.current?.click()}
+                    className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/10 hover:text-zinc-100"
+                    aria-label="Upload image"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    Upload
+                  </button>
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-zinc-900 transition hover:bg-zinc-200"
+                    aria-label="Send"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
               {/* Context forensics: Image URL + Claim → INVESTIGATE */}
