@@ -120,6 +120,8 @@ export default function Home() {
   const heroTextareaRef = useRef<HTMLTextAreaElement>(null);
   const timelineContainerRef = useRef<HTMLDivElement>(null);
   const firstMarkerRef = useRef<HTMLDivElement>(null);
+  const resultsSectionRef = useRef<HTMLElement>(null);
+  const prevResultsLengthRef = useRef(0);
 
   const [animatedWord, setAnimatedWord] = useState(HERO_PHRASE_PREFIX);
   const [phraseIndex, setPhraseIndex] = useState(0);
@@ -372,6 +374,13 @@ export default function Home() {
     }
   }
 
+  useEffect(() => {
+    if (results.length > 0 && prevResultsLengthRef.current === 0) {
+      resultsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    prevResultsLengthRef.current = results.length;
+  }, [results.length]);
+
   function renderVerdictStats(r: UnifiedResult) {
     const verdict = r.verdict ?? "";
     const score = r.score ?? 0;
@@ -531,7 +540,11 @@ export default function Home() {
             )}
 
             {results.length > 0 && (
-              <section className="mt-10 w-full max-w-2xl text-left space-y-10">
+              <section
+                ref={resultsSectionRef}
+                className="mt-10 w-full max-w-2xl text-left space-y-10 scroll-mt-20"
+                aria-label="Results"
+              >
                 {results.map((result, resultIdx) => {
                   const stats = renderVerdictStats(result);
                   const pageResults =
