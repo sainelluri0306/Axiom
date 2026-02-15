@@ -3,12 +3,7 @@
 import Link from "next/link";
 import PaperTrailsLogo from "./PaperTrailsLogo";
 
-const navLinks = [
-  { href: "#cases", label: "Cases" },
-  { href: "#reports", label: "Reports" },
-  { href: "#about", label: "About" },
-  { href: "#pricing", label: "Pricing" },
-];
+const navLinks: Array<{ href: string; label: string }> = [];
 
 export default function Nav() {
   return (
@@ -30,21 +25,23 @@ export default function Nav() {
         </Link>
 
         {/* Center: nav links with chevrons */}
-        <ul className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-8 sm:flex" role="list">
-          {navLinks.map(({ href, label }) => (
-            <li key={href}>
-              <Link
-                href={href}
-                className="flex items-center gap-1 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
-              >
-                {label}
-                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        {navLinks.length > 0 && (
+          <ul className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-8 sm:flex" role="list">
+            {navLinks.map(({ href, label }) => (
+              <li key={href}>
+                <Link
+                  href={href}
+                  className="flex items-center gap-1 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+                >
+                  {label}
+                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
 
         {/* Right: icon + Login pill */}
         <div className="flex items-center gap-3">
