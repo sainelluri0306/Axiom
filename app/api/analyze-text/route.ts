@@ -297,12 +297,12 @@ ${factCheckContext}
 SEARCH RESULTS (use these links for timeline):
 ${searchContextText || "No search results found."}
 
-RULES: Only evaluate what the user claimed. Do not invent errors. Trust majority of sources. Core claim = who/what/when/where.
-Verdict: TRUE/MOSTLY TRUE (5-30) | FALSE/MOSTLY FALSE (70-100) | UNVERIFIED (50) only when truly unverifiable.
+RULES: Only evaluate what the user claimed. Do not invent errors. Trust majority of sources.
+Verdict: TRUE | FALSE | UNVERIFIED (only when genuinely insufficient evidence).
 Score 0-100: higher = more FALSE.
 
-Return ONLY valid JSON, no markdown:
-{"verdict":"string","score":number 0-100,"explanation":"string","timeline":[{"label":"short label","date":"date or N/A","description":"1-2 sentences","link":"URL or empty string"}]}`;
+Return ONLY valid JSON, no markdown. Use this exact structure:
+{"verdict":"string","score":number 0-100,"explanation":"string","timeline":[{"label":"string","date":"string","description":"string","link":"string"}]}`;
 
     const bedrockBody = {
       anthropic_version: "bedrock-2023-05-31",

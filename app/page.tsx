@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import Nav from "@/components/Nav";
 import PaperTrailsLogo from "@/components/PaperTrailsLogo";
 import TextEncrypted from "@/components/TextEncrypted";
 import skyline from "@/assets/skyline.jpg";
@@ -57,7 +56,7 @@ function getDomain(link: string): string {
 /** Only treat as image if URL has image extension OR is from a known image-only host. */
 const IMAGE_EXT_REGEX = /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i;
 const IMAGE_HOST_REGEX =
-  /^https?:\/\/([^/]*\.)?(pbs\.twimg\.com|i\.imgur\.com|(?:farm\d+\.)?staticflickr\.com)(\/|$)/i;
+  /^https?:\/\/([^/]*\.)?(pbs\.twimg\.com|i\.imgur\.com|(?:farm\d+\.)?staticflickr\.com|(?:encrypted-)?tbn\d*\.gstatic\.com|([^/]*\.)?googleusercontent\.com)(\/|$|\?)/i;
 
 function isImageUrlString(url: string): boolean {
   if (IMAGE_EXT_REGEX.test(url)) return true;
@@ -119,6 +118,7 @@ export default function Home() {
   const [results, setResults] = useState<UnifiedResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [detectedScenarios, setDetectedScenarios] = useState<Array<"image" | "url" | "text">>([]);
+  const [enlargedImageUrl, setEnlargedImageUrl] = useState<string | null>(null);
   const heroFileInputRef = useRef<HTMLInputElement>(null);
   const heroTextareaRef = useRef<HTMLTextAreaElement>(null);
   const timelineContainerRef = useRef<HTMLDivElement>(null);
@@ -407,9 +407,7 @@ export default function Home() {
       <div className="fixed inset-0 z-[1] bg-black/55" aria-hidden />
       <div className="grain-overlay" aria-hidden="true" />
       <div className="relative z-10 flex min-h-screen flex-col">
-        <Nav />
-
-        <main className="relative flex flex-1 flex-col items-center px-4 py-12 sm:px-6 sm:py-16">
+        <main className="relative flex flex-1 flex-col items-center justify-center px-4 py-12 sm:px-6 sm:py-16 min-h-[85vh]">
           <div className="mx-auto flex w-full max-w-2xl flex-col items-center text-center">
             <header className="space-y-5">
               <h1 className="flex justify-center">
@@ -550,6 +548,34 @@ export default function Home() {
               </p>
             )}
           </div>
+
+          {/* Image viewer overlay: click output image to enlarge */}
+          {enlargedImageUrl && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+              onClick={() => setEnlargedImageUrl(null)}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Image viewer"
+            >
+              <button
+                type="button"
+                onClick={() => setEnlargedImageUrl(null)}
+                className="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-zinc-300 hover:bg-white/20 hover:text-white transition-colors z-10"
+                aria-label="Close viewer"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              <img
+                src={enlargedImageUrl}
+                alt="Expanded view"
+                className="max-w-[90vw] max-h-[90vh] w-auto h-auto object-contain rounded-lg shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          )}
 
           {results.length > 0 && (
             <section
@@ -742,11 +768,30 @@ export default function Home() {
                               </p>
                             )}
                             {result.aboutThisImage.headerImage && (
-                              <img
-                                src={result.aboutThisImage.headerImage}
-                                alt="Analyzed"
-                                className="rounded-lg w-full max-h-40 object-cover"
-                              />
+                              <button
+                                type="button"
+                                onClick={() => setEnlargedImageUrl(result.aboutThisImage!.headerImage!)}
+                                className="group relative rounded-lg w-full max-h-40 overflow-hidden border-0 p-0 focus:outline-none focus:ring-2 focus:ring-white/20 text-left"
+                              >
+                                <img
+                                  src={result.aboutThisImage.headerImage}
+                                  alt="Analyzed — click to enlarge"
+                                  className="rounded-lg w-full max-h-40 object-cover cursor-pointer transition-transform duration-200 group-hover:scale-[1.02]"
+                                />
+                                <span
+                                  className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+                                  aria-hidden
+                                >
+                                  <svg
+                                    className="w-10 h-10 text-white drop-shadow-md"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                                  </svg>
+                                </span>
+                              </button>
                             )}
                           </div>
                         )}

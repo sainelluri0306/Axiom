@@ -163,7 +163,12 @@ export async function POST(request: NextRequest) {
 
     // —— Step B: Parse About This Image (header + page_results) ——
     const aboutThisImage = parseAboutThisImageResponse(serpData);
-    if (!aboutThisImage || aboutThisImage.pageResults.length === 0) {
+    const hasUsableContext =
+      aboutThisImage &&
+      (aboutThisImage.headerTitle ||
+        aboutThisImage.headerImage ||
+        aboutThisImage.pageResults.length > 0);
+    if (!hasUsableContext) {
       return NextResponse.json({
         ...buildNoDigitalFootprintResult(),
         aboutThisImage: aboutThisImage ?? { headerTitle: null, headerImage: null, pageResults: [] },
@@ -177,9 +182,10 @@ export async function POST(request: NextRequest) {
         return "Unknown";
       }
     };
+    const pageResultsList = aboutThisImage!.pageResults ?? [];
     const imageHistory = {
-      knowledgeGraphTitle: aboutThisImage.headerTitle,
-      visualMatches: aboutThisImage.pageResults.slice(0, 15).map((p) => ({
+      knowledgeGraphTitle: aboutThisImage!.headerTitle,
+      visualMatches: pageResultsList.slice(0, 15).map((p) => ({
         source: hostname(p.link),
         title: p.title,
         date: p.date,
@@ -209,9 +215,12 @@ export async function POST(request: NextRequest) {
     });
 
     const imageHistoryText = [
-      aboutThisImage.headerTitle ? `About this image: ${aboutThisImage.headerTitle}` : "",
-      "Found on these pages (use these exact link URLs when you assign a link to a timeline node):",
-      ...aboutThisImage.pageResults.slice(0, 20).map(
+      aboutThisImage!.headerTitle ? `About this image: ${aboutThisImage!.headerTitle}` : "",
+      aboutThisImage!.headerImage ? `Header image URL: ${aboutThisImage!.headerImage}` : "",
+      pageResultsList.length > 0
+        ? "Found on these pages (use these exact link URLs when you assign a link to a timeline node):"
+        : "No specific pages were found; use the header context above and the user claim to assess context accuracy.",
+      ...pageResultsList.slice(0, 20).map(
         (p) => `- date: ${p.date} | title: ${p.title} | snippet: ${p.snippet ?? "(none)"} | link: ${p.link}`
       ),
     ]
@@ -229,9 +238,12 @@ Build a timeline that tells the image's story. Use as many nodes as the story ne
 - Simple case: 2 nodes (earliest/first use, current use).
 - If the image was altered/doctored: 3+ nodes (e.g. original image → doctored version → current context).
 - More nodes if there are other distinct moments (e.g. first viral use, then alteration, then current).
-Each timeline node must use a "link" URL from the Image History list above (pick the entry that best matches that moment).
+When page links are listed above, use a "link" URL from that list for each node; when no pages were found, use "" for link.
+Verdict: TRUE (context accurate) | FALSE (context hijacked/wrong) | UNVERIFIED (cannot determine).
+Score 0-100: higher = more FALSE.
+
 Return ONLY valid JSON with no markdown, no code fences. Use this exact structure:
-{"verdict":"string (e.g. CONTEXT HIJACKED or CONTEXT ACCURATE)","score":number 0-100 (higher = more likely context is wrong/hijacked),"explanation":"string","timeline":[{"label":"short label e.g. Original image","date":"date from the data","description":"context for this moment in 1-2 sentences","link":"URL from Image History"}]}`;
+{"verdict":"string","score":number 0-100,"explanation":"string","timeline":[{"label":"string","date":"string","description":"string","link":"string"}]}`;
 
     const bedrockBody = {
       anthropic_version: "bedrock-2023-05-31",

@@ -108,10 +108,11 @@ const ARTICLE_SELECTORS = [
 
 type ScrapedContent = { title: string; description: string; body: string; imageUrls: string[] };
 
-/** Try X/Twitter oEmbed when direct scrape fails (X blocks scrapers). */
+/** Try X/Twitter oEmbed (more reliable than direct scrape; X blocks scrapers). */
 async function fetchXViaOembed(tweetUrl: string): Promise<ScrapedContent | null> {
   try {
     const cleanUrl = tweetUrl.replace(/\?.*$/, "");
+    // hide_media=false (default) includes images in the embed HTML
     const oembedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(cleanUrl)}`;
     const res = await axios.get<{ html?: string; author_name?: string }>(oembedUrl, {
       timeout: 10000,
@@ -122,11 +123,17 @@ async function fetchXViaOembed(tweetUrl: string): Promise<ScrapedContent | null>
     const $ = cheerio.load(html);
     const text = $("blockquote").text().trim() || $.text().trim();
     if (!text || text.length < 10) return null;
+    // Extract image URLs from img tags in the oEmbed HTML
+    const imageUrls: string[] = [];
+    $("img").each((_, el) => {
+      const src = $(el).attr("src");
+      if (src && /^https?:\/\//i.test(src)) imageUrls.push(src);
+    });
     return {
       title: `Tweet by ${res.data?.author_name ?? "X user"}`,
       description: text.slice(0, 300),
       body: text,
-      imageUrls: [], // URL scrape: text only, no images
+      imageUrls,
     };
   } catch {
     return null;
@@ -167,6 +174,15 @@ async function scrapeUrl(url: string): Promise<ScrapedContent> {
     $('meta[name="description"]').attr("content") ||
     "";
 
+  // Extract image URLs from meta tags (og:image, twitter:image)
+  const imageUrls: string[] = [];
+  const ogImage = $('meta[property="og:image"]').attr("content");
+  const twitterImage = $('meta[name="twitter:image"]').attr("content");
+  if (ogImage && /^https?:\/\//i.test(ogImage)) imageUrls.push(ogImage);
+  if (twitterImage && /^https?:\/\//i.test(twitterImage) && !imageUrls.includes(twitterImage)) {
+    imageUrls.push(twitterImage);
+  }
+
   let body = "";
   for (const sel of ARTICLE_SELECTORS) {
     const el = $(sel).first();
@@ -181,21 +197,25 @@ async function scrapeUrl(url: string): Promise<ScrapedContent> {
 
   body = body.replace(/\s+/g, " ").slice(0, 8000);
 
-  // X/Twitter often returns error page instead of content. Try oEmbed fallback.
+  // X/Twitter: try oEmbed first (more reliable; X blocks direct scrapers)
   const isXUrl = /(?:^https?:\/\/)(?:x\.com|twitter\.com)\//i.test(url);
-  const isXErrorPage =
-    /something went wrong|privacy related extensions|try again/i.test(body) ||
-    (body.length < 200 && /x\.com|twitter/i.test(body));
-  if (isXUrl && isXErrorPage) {
+  if (isXUrl) {
     const oembed = await fetchXViaOembed(url);
-    if (oembed) return oembed;
+    if (oembed) {
+      // Merge og:image from direct fetch if oEmbed didn't return images
+      if ((oembed.imageUrls?.length ?? 0) === 0 && imageUrls.length > 0) {
+        oembed.imageUrls = imageUrls;
+      }
+      return oembed;
+    }
+    // oEmbed failed; use direct scrape (may still have og meta tags)
   }
 
   return {
     title: title.trim().slice(0, 500),
     description: description.trim().slice(0, 1000),
     body,
-    imageUrls: [], // URL scrape: text only, no images
+    imageUrls,
   };
 }
 
@@ -570,10 +590,10 @@ Analyze the scraped content and search results above. Base your verdict on the e
 - Evaluate each case on its merits. Do not apply rigid rules—reason from the evidence provided.
 - UNVERIFIED only when there is genuinely insufficient evidence to reach a conclusion.
 
-Verdict: TRUE/MOSTLY TRUE | FALSE/MOSTLY FALSE | UNVERIFIED.
+Verdict: TRUE | FALSE | UNVERIFIED (only when genuinely insufficient evidence).
 Score 0-100: higher = more FALSE.
 
-Return ONLY valid JSON, no markdown:
+Return ONLY valid JSON, no markdown. Use this exact structure:
 {"verdict":"string","score":number 0-100,"explanation":"string","timeline":[{"label":"string","date":"string","description":"string","link":"string"}]}`;
 
     const bedrockBody = {
