@@ -2,6 +2,9 @@
 
 import { useState, useRef, useEffect } from "react";
 import Nav from "@/components/Nav";
+import PaperTrailsLogo from "@/components/PaperTrailsLogo";
+import TextEncrypted from "@/components/TextEncrypted";
+import skyline from "@/assets/skyline.jpg";
 
 type TimelineNode = {
   label: string;
@@ -40,6 +43,7 @@ const HERO_PHRASES = [
   "paste a tweet link",
   "paste a fact to verify",
 ];
+const HERO_PHRASE_PREFIX = "paste a"; // Erase only back to this between suggestions
 
 function getDomain(link: string): string {
   try {
@@ -117,7 +121,7 @@ export default function Home() {
   const timelineContainerRef = useRef<HTMLDivElement>(null);
   const firstMarkerRef = useRef<HTMLDivElement>(null);
 
-  const [animatedWord, setAnimatedWord] = useState("");
+  const [animatedWord, setAnimatedWord] = useState(HERO_PHRASE_PREFIX);
   const [phraseIndex, setPhraseIndex] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -127,23 +131,27 @@ export default function Home() {
     const deletingSpeed = 40;
     const pauseAfterType = 1200;
     const pauseAfterDelete = 500;
+    const prefixLen = HERO_PHRASE_PREFIX.length;
+    const atPrefix = animatedWord === HERO_PHRASE_PREFIX || animatedWord.length <= prefixLen;
     let delay: number;
     if (isDeleting) {
-      delay = animatedWord.length > 0 ? deletingSpeed : pauseAfterDelete;
+      delay = animatedWord.length > prefixLen ? deletingSpeed : pauseAfterDelete;
     } else {
       delay =
         animatedWord.length === phrase.length
           ? pauseAfterType
-          : animatedWord.length === 0
+          : atPrefix && animatedWord.length === prefixLen
             ? pauseAfterDelete
             : typingSpeed;
     }
     const timeout = window.setTimeout(() => {
       if (isDeleting) {
-        if (animatedWord.length > 0) setAnimatedWord(animatedWord.slice(0, -1));
-        else {
+        if (animatedWord.length > prefixLen) {
+          setAnimatedWord(animatedWord.slice(0, -1));
+        } else {
           setIsDeleting(false);
           setPhraseIndex((i) => (i + 1) % HERO_PHRASES.length);
+          setAnimatedWord(HERO_PHRASE_PREFIX);
         }
       } else {
         if (animatedWord.length < phrase.length)
@@ -381,7 +389,14 @@ export default function Home() {
   }
 
   return (
-    <div className="noir-bg-base min-h-screen">
+    <div className="relative min-h-screen">
+      {/* Skyline background: fit to viewport width, aligned to bottom; slides up on load */}
+      <div
+        className="skyline-slide-up fixed inset-0 z-0 bg-noir-bg bg-no-repeat bg-[length:100%_auto] bg-bottom"
+        style={{ backgroundImage: `url(${skyline.src})` }}
+        aria-hidden
+      />
+      <div className="fixed inset-0 z-[1] bg-black/55" aria-hidden />
       <div className="grain-overlay" aria-hidden="true" />
       <div className="relative z-10 flex min-h-screen flex-col">
         <Nav />
@@ -389,13 +404,19 @@ export default function Home() {
         <main className="relative flex flex-1 flex-col items-center px-4 py-12 sm:px-6 sm:py-16">
           <div className="mx-auto flex w-full max-w-2xl flex-col items-center text-center">
             <header className="space-y-5">
-              <h1 className="font-display text-4xl font-normal leading-[1.15] tracking-tight text-white sm:text-5xl lg:text-[3.25rem]">
-                Your provenance engine
-                <br />
-                for the internet.
+              <h1 className="flex justify-center">
+                <PaperTrailsLogo
+                  className="h-20 w-auto sm:h-24 lg:h-28 text-white"
+                  underlineDuration={0.7}
+                />
               </h1>
-              <p className="mx-auto max-w-md text-sm tracking-wide text-zinc-500 sm:text-base">
-                Paste any combination: claim, image URL, article link. We&apos;ll run all that apply.
+              <p className="font-jost mx-auto max-w-2xl px-4 text-base tracking-wider text-zinc-500 sm:text-lg">
+                <TextEncrypted
+                  text="Don't just spot the fake. Prove the origin."
+                  holdEncryptedMs={1000}
+                  spreadMs={950}
+                  className="text-inherit"
+                />
               </p>
             </header>
 
@@ -478,7 +499,7 @@ export default function Home() {
                   aria-label="Upload image"
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                   </svg>
                   Image
                 </button>

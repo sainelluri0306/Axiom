@@ -23,7 +23,7 @@ html::-webkit-scrollbar-thumb:hover {
 
 /* Premium black — clean, luxurious */
 .noir-bg-base {
-  background: #050506;
+  background: #000000;
   min-height: 100vh;
   position: relative;
 }
@@ -39,9 +39,24 @@ html::-webkit-scrollbar-thumb:hover {
   background-size: 200px 200px;
 }
 
+/* Skyline background: slide up on load; squish → unsquish for parallax perspective */
+.skyline-slide-up {
+  animation: skyline-slide-up 2s cubic-bezier(0, 0, 0.58, 1) forwards; /* ease-out only, no ease-in */
+  transform-origin: center bottom;
+}
+
+@keyframes skyline-slide-up {
+  from {
+    transform: translateY(3%) scaleY(0.999);
+  }
+  to {
+    transform: translateY(0) scaleY(1);
+  }
+}
+
 /* Focus ring — minimal white/grey, no yellow */
 *:focus-visible {
-  @apply outline-none ring-2 ring-white/20 ring-offset-2 ring-offset-[#0a0a0b];
+  @apply outline-none ring-2 ring-white/20 ring-offset-2 ring-offset-black;
 }
 
 /* Hero input: no box/highlight on focus — fully transparent, no ring */
@@ -266,9 +281,9 @@ div[class*="rounded-full"][class*="border"] {
   width: 14px !important;
   height: 14px !important;
   border: 3px solid rgba(255, 255, 255, 0.6) !important;
-  background: #050506 !important;
+  background: #000000 !important;
   box-shadow: 
-    0 0 0 4px rgba(5, 5, 6, 0.9),
+    0 0 0 4px rgba(0, 0, 0, 0.9),
     0 0 0 6px rgba(255, 255, 255, 0.1),
     0 2px 8px rgba(0, 0, 0, 0.3);
   transition: none !important;

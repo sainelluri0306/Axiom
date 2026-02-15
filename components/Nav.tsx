@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import PaperTrailsLogo from "./PaperTrailsLogo";
 
 const navLinks = [
   { href: "#cases", label: "Cases" },
@@ -23,11 +24,9 @@ export default function Nav() {
         <Link
           href="/"
           className="flex items-center gap-2 text-zinc-100 hover:text-white transition-colors"
+          aria-label="Paper Trails home"
         >
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-white/10 text-zinc-300 text-xs font-semibold">
-            PT
-          </span>
-          <span className="font-display text-lg tracking-wide">Paper Trails</span>
+          <PaperTrailsLogo className="h-8 w-auto min-w-[8rem]" underlineDuration={0.7} />
         </Link>
 
         {/* Center: nav links with chevrons */}

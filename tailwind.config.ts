@@ -10,7 +10,7 @@ const config: Config = {
     extend: {
       colors: {
         noir: {
-          bg: "#0a0a0b",
+          bg: "#000000",
           surface: "#111113",
           border: "#1c1c1f",
           muted: "#71717a",
@@ -22,10 +22,11 @@ const config: Config = {
       fontFamily: {
         display: ["var(--font-display)", "serif"],
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        jost: ["var(--font-jost)", "system-ui", "sans-serif"],
       },
       backgroundImage: {
-        "gradient-noir": "linear-gradient(180deg, #0a0a0b 0%, #0d0d0f 50%, #0a0a0b 100%)",
-        "gradient-matte": "linear-gradient(135deg, #111 0%, #0a0a0b 100%)",
+        "gradient-noir": "linear-gradient(180deg, #000000 0%, #0a0a0a 50%, #000000 100%)",
+        "gradient-matte": "linear-gradient(135deg, #0a0a0a 0%, #000000 100%)",
         "gradient-title": "linear-gradient(180deg, #fafafa 0%, #d4d4d8 100%)",
       },
       boxShadow: {
