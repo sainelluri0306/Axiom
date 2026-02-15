@@ -5,6 +5,8 @@ import PaperTrailsLogo from "@/components/PaperTrailsLogo";
 import TextEncrypted from "@/components/TextEncrypted";
 import skyline from "@/assets/skyline.jpg";
 import magnifyingGlassGif from "@/assets/icons8-magnifying-glass.gif";
+import trueSvg from "@/assets/true.svg";
+import falseSvg from "@/assets/false.svg";
 
 type TimelineNode = {
   label: string;
@@ -51,6 +53,25 @@ function getDomain(link: string): string {
   } catch {
     return "Source";
   }
+}
+
+/** Format timeline date to always include year (e.g. "Jan 15, 2024"). */
+function formatTimelineDate(dateStr: string): string {
+  const trimmed = dateStr.trim();
+  if (!trimmed) return trimmed;
+  const hasYear = /\b(19|20)\d{2}\b/.test(trimmed);
+  const d = new Date(trimmed);
+  if (!Number.isNaN(d.getTime())) {
+    const mon = d.toLocaleString("en-US", { month: "short" });
+    const day = d.getDate();
+    const year = d.getFullYear();
+    return `${mon} ${day}, ${year}`;
+  }
+  if (!hasYear) {
+    const year = new Date().getFullYear();
+    return `${trimmed}, ${year}`;
+  }
+  return trimmed;
 }
 
 /** Only treat as image if URL has image extension OR is from a known image-only host. */
@@ -623,7 +644,9 @@ export default function Home() {
                       className="results-dashboard grid grid-cols-1 lg:grid-cols-3 gap-6 items-start"
                     >
                       {/* Left 1/3: Timeline */}
-                      <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
+                      <div
+                        className={`rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6 ${stats.isTrueVerdict ? "timeline-verdict-true" : stats.isUnverifiable ? "" : "timeline-verdict-false"}`}
+                      >
                         <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-4 font-bold">
                           Timeline
                         </span>
@@ -640,7 +663,7 @@ export default function Home() {
                                 >
                                   <div className="rounded-md bg-white/95 px-2 py-1.5 text-center shrink-0 min-w-0">
                                     <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-800 whitespace-nowrap block">
-                                      {node.date}
+                                      {formatTimelineDate(node.date)}
                                     </span>
                                   </div>
                                   <div className="relative flex justify-center pt-1.5 shrink-0">
@@ -696,8 +719,8 @@ export default function Home() {
 
                       {/* Middle 1/3: Verdict (stamp) + Sources */}
                       <div className="flex min-w-0 flex-col gap-6">
-                        <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
-                          <div className="mb-3">
+                        <div className="relative rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
+                          <div className="flex justify-center mb-5">
                             {stats.isUnverifiable ? (
                               <span
                                 className="inline-block px-5 py-2.5 text-xl font-bold uppercase tracking-[0.2em] border-2 border-dashed border-amber-500/80 text-amber-400/90 -rotate-1"
@@ -711,41 +734,31 @@ export default function Home() {
                                 UNVERIFIED
                               </span>
                             ) : stats.isTrueVerdict ? (
-                              <span
-                                className="inline-block px-5 py-2.5 text-xl font-bold uppercase tracking-[0.2em] border-2 border-dashed border-emerald-500/90 text-emerald-400 -rotate-2"
-                                style={{
-                                  fontFamily: "var(--font-display), 'Special Elite', monospace",
-                                  boxShadow: "inset 0 0 0 1px rgba(16, 185, 129, 0.15), 0 0 8px rgba(16, 185, 129, 0.15)",
-                                  background: "linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, transparent 50%)",
-                                  textShadow: "0 0 1px rgba(16, 185, 129, 0.6), 1px 1px 0 rgba(0,0,0,0.2)",
-                                }}
-                              >
-                                TRUE
-                              </span>
+                              <img
+                                src={typeof trueSvg === "string" ? trueSvg : trueSvg.src}
+                                alt="True"
+                                className="inline-block h-[4.4rem] w-auto max-w-[220px] -rotate-2 object-contain"
+                              />
                             ) : (
-                              <span
-                                className="inline-block px-5 py-2.5 text-xl font-bold uppercase tracking-[0.2em] border-2 border-dashed border-red-500/90 text-red-400 rotate-2"
-                                style={{
-                                  fontFamily: "var(--font-display), 'Special Elite', monospace",
-                                  boxShadow: "inset 0 0 0 1px rgba(239, 68, 68, 0.15), 0 0 8px rgba(239, 68, 68, 0.15)",
-                                  background: "linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, transparent 50%)",
-                                  textShadow: "0 0 1px rgba(239, 68, 68, 0.6), 1px 1px 0 rgba(0,0,0,0.2)",
-                                }}
-                              >
-                                FALSE
-                              </span>
+                              <img
+                                src={typeof falseSvg === "string" ? falseSvg : falseSvg.src}
+                                alt="False"
+                                className="inline-block h-[4.4rem] w-auto max-w-[220px] rotate-2 object-contain"
+                              />
                             )}
                           </div>
-                          {stats.isUnverifiable ? (
-                            <p className="text-sm text-amber-400/90 font-medium">
-                              Not enough information to verify
-                            </p>
-                          ) : null}
-                          {result.explanation && (
-                            <p className="text-sm text-zinc-400 whitespace-pre-wrap">
-                              {result.explanation}
-                            </p>
-                          )}
+                          <div>
+                            {stats.isUnverifiable ? (
+                              <p className="text-sm text-amber-400/90 font-medium">
+                                Not enough information to verify
+                              </p>
+                            ) : null}
+                            {result.explanation && (
+                              <p className="text-sm text-zinc-400 whitespace-pre-wrap">
+                                {result.explanation}
+                              </p>
+                            )}
+                          </div>
                         </div>
                         <div className="relevant-sources w-full min-w-0 overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
                           <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-3">

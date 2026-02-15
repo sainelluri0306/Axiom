@@ -84,6 +84,25 @@ function parseAboutThisImageResponse(data: Record<string, unknown>): AboutThisIm
   return { headerTitle, headerImage, pageResults };
 }
 
+/** Normalize timeline date to "Mon DD, YYYY" so the year is always present. */
+function formatTimelineDate(s: string): string {
+  if (!s || s === "N/A") return "N/A";
+  const raw = s.trim();
+  const hasYear = /\b(19|20)\d{2}\b/.test(raw);
+  const d = new Date(raw);
+  if (!Number.isNaN(d.getTime())) {
+    const mon = d.toLocaleString("en-US", { month: "short" });
+    const day = d.getDate();
+    const year = d.getFullYear();
+    return `${mon} ${day}, ${year}`;
+  }
+  if (!hasYear) {
+    const year = new Date().getFullYear();
+    return `${raw}, ${year}`;
+  }
+  return raw;
+}
+
 function buildNoDigitalFootprintResult(): AnalysisResult {
   return {
     verdict: "No Digital Footprint",
@@ -239,6 +258,7 @@ Build a timeline that tells the image's story. Use as many nodes as the story ne
 - If the image was altered/doctored: 3+ nodes (e.g. original image → doctored version → current context).
 - More nodes if there are other distinct moments (e.g. first viral use, then alteration, then current).
 When page links are listed above, use a "link" URL from that list for each node; when no pages were found, use "" for link.
+For each timeline node, use the "date" from the matching page line above when that node corresponds to a listed result. Always include the year in every date (e.g. "Jan 15, 2024" or "2024-01-15").
 Verdict: TRUE (context accurate) | FALSE (context hijacked/wrong) | UNVERIFIED (cannot determine).
 Score 0-100: higher = more FALSE.
 
@@ -298,9 +318,10 @@ Return ONLY valid JSON with no markdown, no code fences. Use this exact structur
           .filter((t) => t != null && typeof t === "object")
           .map((t) => {
             const o = t as Record<string, unknown>;
+            const dateStr = typeof o.date === "string" ? o.date : "N/A";
             return {
               label: typeof o.label === "string" ? o.label : "Event",
-              date: typeof o.date === "string" ? o.date : "N/A",
+              date: formatTimelineDate(dateStr),
               description: typeof o.description === "string" ? o.description : "",
               link: typeof o.link === "string" ? o.link : "",
             };

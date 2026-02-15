@@ -167,6 +167,25 @@ function toPageResult(r: SerpOrganicResult | SerpNewsResult, source: string): Pa
   };
 }
 
+/** Normalize timeline date to "Mon DD, YYYY" so the year is always present. */
+function formatTimelineDate(s: string): string {
+  if (!s || s === "N/A") return "N/A";
+  const raw = s.trim();
+  const hasYear = /\b(19|20)\d{2}\b/.test(raw);
+  const d = new Date(raw);
+  if (!Number.isNaN(d.getTime())) {
+    const mon = d.toLocaleString("en-US", { month: "short" });
+    const day = d.getDate();
+    const year = d.getFullYear();
+    return `${mon} ${day}, ${year}`;
+  }
+  if (!hasYear) {
+    const year = new Date().getFullYear();
+    return `${raw}, ${year}`;
+  }
+  return raw;
+}
+
 /** Extract verdict from fact-check result snippets (PolitiFact, Snopes, etc.). */
 function verdictFromSnippets(
   results: PageResultItem[],
@@ -302,6 +321,7 @@ SEARCH RESULTS (use these links for timeline):
 ${searchContextText || "No search results found."}
 
 RULES: Only evaluate what the user claimed. Do not invent errors. Trust majority of sources.
+For the timeline: use the exact "date" from the SEARCH RESULTS lines above when a node corresponds to that result. Every timeline date must include the year (e.g. "Jan 15, 2024").
 Verdict: TRUE | FALSE | UNVERIFIED (only when genuinely insufficient evidence).
 Score 0-100: higher = more FALSE.
 
@@ -359,12 +379,15 @@ Return ONLY valid JSON, no markdown. Use this exact structure:
     const timelineRaw = (Array.isArray(parsed.timeline) ? parsed.timeline : []) as unknown[];
     const timelineNodes: TimelineNode[] = timelineRaw
       .filter((t): t is Record<string, unknown> => t != null && typeof t === "object")
-      .map((t) => ({
-        label: typeof t.label === "string" ? t.label : "Event",
-        date: typeof t.date === "string" ? t.date : "N/A",
-        description: typeof t.description === "string" ? t.description : "",
-        link: typeof t.link === "string" ? t.link : "",
-      }));
+      .map((t) => {
+        const dateStr = typeof t.date === "string" ? t.date : "N/A";
+        return {
+          label: typeof t.label === "string" ? t.label : "Event",
+          date: formatTimelineDate(dateStr),
+          description: typeof t.description === "string" ? t.description : "",
+          link: typeof t.link === "string" ? t.link : "",
+        };
+      });
 
     let verdict = typeof parsed.verdict === "string" ? parsed.verdict : "UNVERIFIED";
     let score = typeof parsed.score === "number" ? Math.min(100, Math.max(0, parsed.score)) : 50;

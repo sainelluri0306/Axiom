@@ -71,42 +71,23 @@ export type TimelineNode = {
   link: string;
 };
 
-/** Shorten date to "FEB 13" style so it fits in the timeline date box. */
+/** Normalize timeline date to "Mon DD, YYYY" so the year is always present. */
 function formatTimelineDate(s: string): string {
   if (!s || s === "N/A") return "N/A";
   const raw = s.trim();
-  const months: Record<string, string> = {
-    january: "JAN", february: "FEB", march: "MAR", april: "APR", may: "MAY", june: "JUN",
-    july: "JUL", august: "AUG", september: "SEP", october: "OCT", november: "NOV", december: "DEC",
-    jan: "JAN", feb: "FEB", mar: "MAR", apr: "APR", jun: "JUN", jul: "JUL",
-    aug: "AUG", sep: "SEP", oct: "OCT", nov: "NOV", dec: "DEC",
-  };
-  const lower = raw.toLowerCase();
-  // "Early February 2023" -> "EARLY FEB"
-  const earlyLate = /^(early|late|mid)\s+(\w+)/i.exec(lower);
-  if (earlyLate) {
-    const mon = months[earlyLate[2]];
-    if (mon) return `${earlyLate[1].toUpperCase()} ${mon}`;
+  const hasYear = /\b(19|20)\d{2}\b/.test(raw);
+  const d = new Date(raw);
+  if (!Number.isNaN(d.getTime())) {
+    const mon = d.toLocaleString("en-US", { month: "short" });
+    const day = d.getDate();
+    const year = d.getFullYear();
+    return `${mon} ${day}, ${year}`;
   }
-  // ISO: 2023-02-13
-  const iso = /(\d{4})-(\d{1,2})-(\d{1,2})/.exec(raw);
-  if (iso) {
-    const m = ["", "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"][parseInt(iso[2], 10)];
-    if (m) return `${m} ${parseInt(iso[3], 10)}`;
+  if (!hasYear) {
+    const year = new Date().getFullYear();
+    return `${raw}, ${year}`;
   }
-  // "February 13, 2023" or "Feb 13" or "February 12-13, 2023"
-  for (const [name, abbr] of Object.entries(months)) {
-    const re = new RegExp(`${name}\\s*(\\d{1,2})(?:\\s*-\\s*(\\d{1,2}))?(?:,\\s*\\d{4})?`, "i");
-    const m = raw.match(re);
-    if (m) {
-      if (m[2]) return `${abbr} ${m[1]}-${m[2]}`;
-      return `${abbr} ${m[1]}`;
-    }
-  }
-  // Already short like "FEB 13" - return as-is if under 15 chars
-  if (raw.length <= 14) return raw;
-  // Fallback: truncate
-  return raw.slice(0, 12).trim();
+  return raw;
 }
 
 export type UrlAnalysisResult = {
@@ -631,6 +612,7 @@ Analyze the scraped content and search results above. Base your verdict on the e
 - Compare the article's claims against Web, News, and fact-check sources. Do sources corroborate, contradict, or leave claims unaddressed?
 - Evaluate each case on its merits. Do not apply rigid rules—reason from the evidence provided.
 - UNVERIFIED only when there is genuinely insufficient evidence to reach a conclusion.
+For the timeline: use the exact "date" from the SEARCH RESULTS or IMAGE IN POST lines above when a node corresponds to that source. Every timeline date must include the year (e.g. "Jan 15, 2024").
 
 Verdict: TRUE | FALSE | UNVERIFIED (only when genuinely insufficient evidence).
 Score 0-100: higher = more FALSE.

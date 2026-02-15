@@ -196,6 +196,59 @@ div[class*="rounded-xl"][class*="border"][class*="bg-white"] {
   transform-origin: top center;
 }
 
+/* Timeline glow by verdict: green (true), red (false), default white */
+.timeline-verdict-true .timeline-container::after {
+  background: linear-gradient(
+    to bottom,
+    rgba(34, 197, 94, 0.15),
+    rgba(34, 197, 94, 0.25),
+    rgba(34, 197, 94, 0.2),
+    rgba(34, 197, 94, 0.15)
+  );
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.2);
+}
+
+.timeline-verdict-true .timeline-container::before {
+  background: linear-gradient(
+    to bottom,
+    rgba(34, 197, 94, 0.4),
+    rgba(34, 197, 94, 0.6),
+    rgba(34, 197, 94, 0.75),
+    rgba(34, 197, 94, 0.85),
+    rgba(34, 197, 94, 0.95)
+  );
+  box-shadow:
+    0 0 12px rgba(34, 197, 94, 0.3),
+    0 0 8px rgba(34, 197, 94, 0.5),
+    0 0 16px rgba(34, 197, 94, 0.4);
+}
+
+.timeline-verdict-false .timeline-container::after {
+  background: linear-gradient(
+    to bottom,
+    rgba(239, 68, 68, 0.15),
+    rgba(239, 68, 68, 0.25),
+    rgba(239, 68, 68, 0.2),
+    rgba(239, 68, 68, 0.15)
+  );
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.2);
+}
+
+.timeline-verdict-false .timeline-container::before {
+  background: linear-gradient(
+    to bottom,
+    rgba(239, 68, 68, 0.4),
+    rgba(239, 68, 68, 0.6),
+    rgba(239, 68, 68, 0.75),
+    rgba(239, 68, 68, 0.85),
+    rgba(239, 68, 68, 0.95)
+  );
+  box-shadow:
+    0 0 12px rgba(239, 68, 68, 0.3),
+    0 0 8px rgba(239, 68, 68, 0.5),
+    0 0 16px rgba(239, 68, 68, 0.4);
+}
+
 /* Keep the original timeline-line classes hidden as fallback */
 .timeline-line,
 .timeline-line-bold {
@@ -302,6 +355,24 @@ div[class*="grid"][class*="grid-cols"]:hover div[class*="rounded-full"][class*="
     0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
+.timeline-verdict-true div[class*="grid"][class*="grid-cols"]:hover div[class*="rounded-full"][class*="border"] {
+  border-color: rgba(34, 197, 94, 0.9) !important;
+  box-shadow: 
+    0 0 0 4px rgba(5, 5, 6, 0.9),
+    0 0 0 6px rgba(34, 197, 94, 0.3),
+    0 0 20px rgba(34, 197, 94, 0.25),
+    0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.timeline-verdict-false div[class*="grid"][class*="grid-cols"]:hover div[class*="rounded-full"][class*="border"] {
+  border-color: rgba(239, 68, 68, 0.9) !important;
+  box-shadow: 
+    0 0 0 4px rgba(5, 5, 6, 0.9),
+    0 0 0 6px rgba(239, 68, 68, 0.3),
+    0 0 20px rgba(239, 68, 68, 0.25),
+    0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
 /* First node special styling - grey dot */
 div[class*="grid"][class*="grid-cols"]:first-child div[class*="rounded-full"][class*="border"] {
   background: linear-gradient(135deg, rgba(161, 161, 170, 0.3), rgba(161, 161, 170, 0.2)) !important;
@@ -321,6 +392,22 @@ div[class*="grid"][class*="grid-cols"]:last-child div[class*="rounded-full"][cla
   animation: currentDotPulse 2s ease-in-out infinite;
   z-index: 10;
   transform: none !important;
+}
+
+.timeline-verdict-true div[class*="grid"][class*="grid-cols"]:last-child div[class*="rounded-full"][class*="border"] {
+  box-shadow: 
+    0 0 0 4px rgba(5, 5, 6, 0.95),
+    0 0 0 6px rgba(34, 197, 94, 0.5),
+    0 0 20px rgba(34, 197, 94, 0.5),
+    0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.timeline-verdict-false div[class*="grid"][class*="grid-cols"]:last-child div[class*="rounded-full"][class*="border"] {
+  box-shadow: 
+    0 0 0 4px rgba(5, 5, 6, 0.95),
+    0 0 0 6px rgba(239, 68, 68, 0.5),
+    0 0 20px rgba(239, 68, 68, 0.5),
+    0 2px 8px rgba(0, 0, 0, 0.3) !important;
 }
 
 /* Last node dot should be centered like all others */
