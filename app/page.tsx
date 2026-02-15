@@ -11,6 +11,19 @@ type TimelineNode = {
   link: string;
 };
 
+const HERO_PHRASES = [
+  "email",
+  "instagram posts",
+  "twitter posts",
+  "articles",
+  "images",
+  "news",
+  "videos",
+  "reddit posts",
+  "screenshots",
+  "links",
+];
+
 type AnalysisResult = {
   verdict: string;
   score: number;
@@ -33,8 +46,53 @@ export default function Home() {
   const [heroImagePreview, setHeroImagePreview] = useState<string | null>(null);
   const [heroImageSourceUrl, setHeroImageSourceUrl] = useState<string | null>(null);
   const [heroText, setHeroText] = useState("");
+  const [heroInputFocused, setHeroInputFocused] = useState(false);
   const heroFileInputRef = useRef<HTMLInputElement>(null);
   const heroTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  /* Typing animation: "Trace the Origin of " + cycling words — only when empty, no image, and not focused */
+  const [animatedWord, setAnimatedWord] = useState("");
+  const [phraseIndex, setPhraseIndex] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    const phrase = HERO_PHRASES[phraseIndex];
+    const typingSpeed = 70;
+    const deletingSpeed = 40;
+    const pauseAfterType = 1200;
+    const pauseAfterDelete = 500;
+
+    let delay: number;
+    if (isDeleting) {
+      delay = animatedWord.length > 0 ? deletingSpeed : pauseAfterDelete;
+    } else {
+      delay =
+        animatedWord.length === phrase.length
+          ? pauseAfterType
+          : animatedWord.length === 0
+            ? pauseAfterDelete
+            : typingSpeed;
+    }
+
+    const timeout = window.setTimeout(() => {
+      if (isDeleting) {
+        if (animatedWord.length > 0) {
+          setAnimatedWord(animatedWord.slice(0, -1));
+        } else {
+          setIsDeleting(false);
+          setPhraseIndex((i) => (i + 1) % HERO_PHRASES.length);
+        }
+      } else {
+        if (animatedWord.length < phrase.length) {
+          setAnimatedWord(phrase.slice(0, animatedWord.length + 1));
+        } else {
+          setIsDeleting(true);
+        }
+      }
+    }, delay);
+
+    return () => window.clearTimeout(timeout);
+  }, [phraseIndex, isDeleting, animatedWord]);
 
   /* Auto-grow textarea: 1 line when empty, up to 6 lines then scroll */
   useEffect(() => {
@@ -202,15 +260,33 @@ export default function Home() {
                       </div>
                     </div>
                   )}
-                  <textarea
-                    ref={heroTextareaRef}
-                    value={heroText}
-                    onChange={(e) => setHeroText(e.target.value)}
-                    onPaste={handleHeroPaste}
-                    placeholder="Ask Paper Trails to trace origin..."
-                    rows={1}
-                    className="hero-input hero-textarea w-full resize-none bg-transparent text-sm text-white placeholder-zinc-500 focus:outline-none"
-                  />
+                  <div className="relative w-full">
+                    {!heroText && !heroImagePreview && !heroInputFocused && (
+                      <div
+                        className="pointer-events-none absolute inset-0 flex items-center px-0 py-3 text-sm text-zinc-500"
+                        aria-hidden="true"
+                      >
+                        <span className="whitespace-pre">
+                          Trace the Origin of{" "}
+                          <span className="text-zinc-400">
+                            {animatedWord}
+                            <span className="hero-cursor" />
+                          </span>
+                        </span>
+                      </div>
+                    )}
+                    <textarea
+                      ref={heroTextareaRef}
+                      value={heroText}
+                      onChange={(e) => setHeroText(e.target.value)}
+                      onFocus={() => setHeroInputFocused(true)}
+                      onBlur={() => setHeroInputFocused(false)}
+                      onPaste={handleHeroPaste}
+                      placeholder=""
+                      rows={1}
+                      className="hero-input hero-textarea w-full resize-none bg-transparent px-0 py-3 text-sm text-white placeholder-zinc-500 focus:outline-none"
+                    />
+                  </div>
                 </div>
                 <div className="flex items-center justify-between border-t border-white/[0.06] px-3 py-2">
                   <button

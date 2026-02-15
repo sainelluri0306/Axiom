@@ -73,6 +73,27 @@ html::-webkit-scrollbar-thumb:hover {
   background: rgba(113, 113, 122, 0.7);
 }
 
+/* Hero typing animation — blinking cursor */
+@keyframes hero-cursor-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+.hero-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: currentColor;
+  animation: hero-cursor-blink 1s step-end infinite;
+}
+
 /* Smooth transitions */
 button,
 a,
