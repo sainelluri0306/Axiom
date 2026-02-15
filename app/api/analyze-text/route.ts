@@ -284,13 +284,11 @@ export async function POST(request: NextRequest) {
 
     const userPrompt = `You are a fact-checking analyst. Give ACCURATE verdicts. Avoid UNVERIFIED when evidence exists.
 
-PRIORITY 1 — If Google Fact Check API returned results above, USE THEM. Map their ratings: False/Pants on Fire → FALSE (85-95); True/Mostly True → TRUE/MOSTLY TRUE (5-25); Half True/Mixed → MOSTLY FALSE or MIXED (60-75). Do NOT return UNVERIFIED when Fact Check API has verdicts.
-
-PRIORITY 2 — Search results (Web, News, PolitiFact, Snopes, FactCheck). If multiple sources corroborate the core claim → TRUE/MOSTLY TRUE. If sources debunk or contradict → FALSE/MOSTLY FALSE.
-
-PRIORITY 3 — Use your knowledge for well-known claims (e.g. Epstein death, common conspiracy theories). When the claim matches a widely-debunked pattern and sources support that, return FALSE. Do NOT default to UNVERIFIED just because search is sparse.
-
-UNVERIFIED (50) ONLY when: claim is too vague/short, not a claim (commands, questions, gibberish), or genuinely no evidence in search OR fact-check API. If you have ANY fact-check or search evidence, prefer a definitive verdict.
+Analyze the claim and search results above. Base your verdict on the evidence:
+- If Google Fact Check API returned ratings, weigh them heavily.
+- Compare the claim against Web, News, and fact-check sources. Do sources corroborate, contradict, or leave it unaddressed?
+- Evaluate each case on its merits. Do not apply rigid rules—reason from the evidence provided.
+- UNVERIFIED only when there is genuinely insufficient evidence to reach a conclusion.
 
 Claim: "${claim}"
 

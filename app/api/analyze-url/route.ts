@@ -108,20 +108,6 @@ const ARTICLE_SELECTORS = [
 
 type ScrapedContent = { title: string; description: string; body: string; imageUrls: string[] };
 
-/** Extract image URLs from HTML (og:image, twitter:image, img src with twimg). */
-function extractImageUrls($: ReturnType<typeof cheerio.load>, html?: string): string[] {
-  const urls: string[] = [];
-  const og = $('meta[property="og:image"]').attr("content");
-  const tw = $('meta[name="twitter:image"]').attr("content");
-  if (og && /^https?:\/\//.test(og)) urls.push(og.trim());
-  if (tw && /^https?:\/\//.test(tw) && !urls.includes(tw.trim())) urls.push(tw.trim());
-  $("img[src*='pbs.twimg.com'], img[src*='twimg']").each((_, el) => {
-    const src = $(el).attr("src");
-    if (src && /^https?:\/\//.test(src) && !urls.includes(src)) urls.push(src);
-  });
-  return urls;
-}
-
 /** Try X/Twitter oEmbed when direct scrape fails (X blocks scrapers). */
 async function fetchXViaOembed(tweetUrl: string): Promise<ScrapedContent | null> {
   try {
@@ -136,27 +122,11 @@ async function fetchXViaOembed(tweetUrl: string): Promise<ScrapedContent | null>
     const $ = cheerio.load(html);
     const text = $("blockquote").text().trim() || $.text().trim();
     if (!text || text.length < 10) return null;
-    const imageUrls = extractImageUrls($);
-    // If oEmbed HTML has no img, try fetching tweet page for og:image (best effort)
-    if (imageUrls.length === 0) {
-      try {
-        const pageRes = await axios.get<string>(cleanUrl, {
-          timeout: 8000,
-          headers: { "User-Agent": "Mozilla/5.0 (compatible; PaperTrails/1.0)" },
-          validateStatus: () => true,
-        });
-        const $page = cheerio.load(pageRes.data);
-        const extracted = extractImageUrls($page);
-        if (extracted.length > 0) imageUrls.push(...extracted);
-      } catch {
-        /* ignore */
-      }
-    }
     return {
       title: `Tweet by ${res.data?.author_name ?? "X user"}`,
       description: text.slice(0, 300),
       body: text,
-      imageUrls,
+      imageUrls: [], // URL scrape: text only, no images
     };
   } catch {
     return null;
@@ -221,12 +191,11 @@ async function scrapeUrl(url: string): Promise<ScrapedContent> {
     if (oembed) return oembed;
   }
 
-  const imageUrls = extractImageUrls($);
   return {
     title: title.trim().slice(0, 500),
     description: description.trim().slice(0, 1000),
     body,
-    imageUrls,
+    imageUrls: [], // URL scrape: text only, no images
   };
 }
 
@@ -595,10 +564,11 @@ SEARCH RESULTS:
 ${searchContextText || "No search results found."}
 ${factCheckContext}
 
-PRIORITY 1: If Google Fact Check API returned results above, USE their ratings. False/Pants on Fire → FALSE (85-95); True → TRUE (5-25). Do NOT return UNVERIFIED when Fact Check API has verdicts.
-PRIORITY 2: If scraped URL is from PolitiFact/Snopes/factcheck.org, the page contains their verdict — use it.
-PRIORITY 3: Extract claims from scraped content; verify against search results. Widely-debunked claims (Epstein alive, etc.) → FALSE when evidence supports.
-UNVERIFIED only when: empty content, not a claim, or genuinely no evidence. If you have ANY fact-check or search evidence, give a definitive verdict.
+Analyze the scraped content and search results above. Base your verdict on the evidence:
+- If Google Fact Check API or PolitiFact/Snopes returned ratings, weigh them heavily.
+- Compare the article's claims against Web, News, and fact-check sources. Do sources corroborate, contradict, or leave claims unaddressed?
+- Evaluate each case on its merits. Do not apply rigid rules—reason from the evidence provided.
+- UNVERIFIED only when there is genuinely insufficient evidence to reach a conclusion.
 
 Verdict: TRUE/MOSTLY TRUE | FALSE/MOSTLY FALSE | UNVERIFIED.
 Score 0-100: higher = more FALSE.

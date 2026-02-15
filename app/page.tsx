@@ -53,13 +53,15 @@ function getDomain(link: string): string {
   }
 }
 
-const IMAGE_URL_REGEX =
-  /\.(jpg|jpeg|png|gif|webp)(\?|$)/i;
-const IMAGE_DOMAIN_REGEX =
-  /pbs\.twimg\.com|imgur\.com|i\.imgur\.com|cdn\.|\.staticflickr\./i;
+/** Only treat as image if URL has image extension OR is from a known image-only host. */
+const IMAGE_EXT_REGEX = /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i;
+const IMAGE_HOST_REGEX =
+  /^https?:\/\/([^/]*\.)?(pbs\.twimg\.com|i\.imgur\.com|(?:farm\d+\.)?staticflickr\.com)(\/|$)/i;
 
 function isImageUrlString(url: string): boolean {
-  return IMAGE_URL_REGEX.test(url) || IMAGE_DOMAIN_REGEX.test(url);
+  if (IMAGE_EXT_REGEX.test(url)) return true;
+  if (IMAGE_HOST_REGEX.test(url)) return true;
+  return false;
 }
 
 /** Parse input into image URLs, page URLs, and claim text. */
@@ -205,10 +207,6 @@ export default function Home() {
     };
   }, [results]);
 
-  function isImageUrl(s: string): boolean {
-    return /^https?:\/\/\S+$/i.test(s.trim()) && s.length < 2048;
-  }
-
   function handleHeroPaste(e: React.ClipboardEvent) {
     const dt = e.clipboardData;
     if (!dt) return;
@@ -222,7 +220,7 @@ export default function Home() {
       return;
     }
     const text = dt.getData("text/plain")?.trim();
-    if (text && isImageUrl(text)) {
+    if (text && isImageUrlString(text)) {
       e.preventDefault();
       if (heroImagePreview?.startsWith("blob:")) URL.revokeObjectURL(heroImagePreview);
       setHeroImagePreview(text);
