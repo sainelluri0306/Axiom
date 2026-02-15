@@ -293,18 +293,19 @@ Return ONLY valid JSON with no markdown, no code fences. Use this exact structur
       }
     }
 
-    const timelineRaw = (Array.isArray(parsed.timeline) ? parsed.timeline : []) as unknown[];
-    const timelineNodes: TimelineNode[] = timelineRaw
-      .filter((t) => t != null && typeof t === "object")
-      .map((t) => {
-        const o = t as Record<string, unknown>;
-        return {
-          label: typeof o.label === "string" ? o.label : "Event",
-          date: typeof o.date === "string" ? o.date : "N/A",
-          description: typeof o.description === "string" ? o.description : "",
-          link: typeof o.link === "string" ? o.link : "",
-        };
-      });
+    const timelineNodes: TimelineNode[] = Array.isArray(parsed.timeline)
+      ? parsed.timeline
+          .filter((t) => t != null && typeof t === "object")
+          .map((t) => {
+            const o = t as Record<string, unknown>;
+            return {
+              label: typeof o.label === "string" ? o.label : "Event",
+              date: typeof o.date === "string" ? o.date : "N/A",
+              description: typeof o.description === "string" ? o.description : "",
+              link: typeof o.link === "string" ? o.link : "",
+            };
+          })
+      : [];
 
     const result: AnalysisResult = {
       verdict: typeof parsed.verdict === "string" ? parsed.verdict : "Unknown",
