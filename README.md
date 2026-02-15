@@ -4,9 +4,9 @@
 
 > **Truth has a timeline.**
 
-Instead of analyzing pixels for glitches, we trace the **genealogical history** of digital media to reveal its original context. By combining reverse-image forensics with semantic reasoning, and cross-verification with reputable sources, Paper Trails automatically generates an **evidence board** that exposes when a real image is being hijacked for a false narrative or when a synthetic image has no digital footprint at all. We don’t ask the user to trust a “Fake” label; we give them the historical proof to see the lie for themselves.
+Instead of analyzing pixels for glitches, we trace the **history** of digital media to reveal its original context. By combining reverse-image forensics with semantic reasoning, and cross-verification with reputable sources, Paper Trails automatically generates an **evidence board** that exposes when a real image is being hijacked for a false narrative or when a synthetic image has no digital footprint at all. We don’t ask the user to trust a “Fake” label; we give them the historical proof to see the lie for themselves.
 
-This is not just a fact-checker. It is the **automated paper trail of reality**.
+This is not just a fact-checker. It is a **paper trail of the internet**.
 
 ---
 
