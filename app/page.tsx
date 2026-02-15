@@ -536,66 +536,47 @@ export default function Home() {
                 {error}
               </p>
             )}
+          </div>
 
-            {results.length > 0 && (
-              <section
-                ref={resultsSectionRef}
-                className="mt-10 w-full max-w-2xl text-left space-y-10 scroll-mt-20"
-                aria-label="Results"
-              >
+          {results.length > 0 && (
+            <section
+              ref={resultsSectionRef}
+              className="mt-10 w-full px-4 sm:px-6 lg:px-8 text-left scroll-mt-20"
+              aria-label="Results"
+            >
                 {results.map((result, resultIdx) => {
                   const stats = renderVerdictStats(result);
                   const pageResults =
                     result.pageResults ?? result.aboutThisImage?.pageResults ?? [];
+                  const factCheckSources = pageResults.filter((p) => {
+                    const s = (p.source ?? "").toLowerCase();
+                    const link = (p.link ?? "").toLowerCase();
+                    return (
+                      s.includes("politifact") ||
+                      s.includes("snopes") ||
+                      link.includes("politifact") ||
+                      link.includes("snopes")
+                    );
+                  });
+                  const otherSources = pageResults.filter((p) => {
+                    const s = (p.source ?? "").toLowerCase();
+                    const link = (p.link ?? "").toLowerCase();
+                    return (
+                      !s.includes("politifact") &&
+                      !s.includes("snopes") &&
+                      !link.includes("politifact") &&
+                      !link.includes("snopes")
+                    );
+                  });
+
                   return (
-                    <div key={resultIdx} className="space-y-6">
-                      <span className="text-xs uppercase tracking-wider text-zinc-500">
-                        {result.scenario === "image" && "Image analysis"}
-                        {result.scenario === "url" && "URL / article analysis"}
-                        {result.scenario === "text" && "Text fact-check"}
-                      </span>
-
-                      {result.scrapedContent &&
-                        (result.scrapedContent.title || result.scrapedContent.description) && (
-                          <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4">
-                            <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-2">
-                              From URL
-                            </span>
-                            {result.scrapedContent.title && (
-                              <p className="text-zinc-100 font-medium mb-1">
-                                {result.scrapedContent.title}
-                              </p>
-                            )}
-                            {result.scrapedContent.description && (
-                              <p className="text-sm text-zinc-400 line-clamp-3">
-                                {result.scrapedContent.description}
-                              </p>
-                            )}
-                          </div>
-                        )}
-
-                      <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4 flex flex-col gap-2">
-                        <span className="text-xs uppercase tracking-wider text-zinc-500">Verdict</span>
-                        <p className="text-zinc-100 font-medium">{result.verdict}</p>
-                        {stats.isUnverifiable ? (
-                          <p className="text-sm text-amber-400/90 font-medium">
-                            Not enough information to verify
-                          </p>
-                        ) : (
-                          <>
-                            <p className="text-2xl font-display text-white">{stats.displayPct}%</p>
-                            <p className="text-xs text-zinc-500">{stats.scoreLabel}</p>
-                          </>
-                        )}
-                        {result.explanation && (
-                          <p className="text-sm text-zinc-400 whitespace-pre-wrap mt-2">
-                            {result.explanation}
-                          </p>
-                        )}
-                      </div>
-
+                    <div
+                      key={resultIdx}
+                      className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start"
+                    >
+                      {/* Left 1/3: Timeline */}
                       <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
-                        <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-6 font-bold">
+                        <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-4 font-bold">
                           Timeline — findings
                         </span>
                         <div
@@ -685,59 +666,121 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {result.aboutThisImage?.headerImage && (
-                        <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4">
-                          <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-2">
-                            About this image
-                          </span>
-                          {result.aboutThisImage.headerTitle && (
-                            <p className="text-zinc-100 font-medium mb-2">
-                              {result.aboutThisImage.headerTitle}
+                      {/* Middle 1/3: Verdict (no %) + Sources */}
+                      <div className="flex flex-col gap-6">
+                        <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
+                          <p className="text-lg font-medium text-white mb-2">
+                            {result.verdict}
+                          </p>
+                          {stats.isUnverifiable ? (
+                            <p className="text-sm text-amber-400/90 font-medium">
+                              Not enough information to verify
+                            </p>
+                          ) : null}
+                          {result.explanation && (
+                            <p className="text-sm text-zinc-400 whitespace-pre-wrap">
+                              {result.explanation}
                             </p>
                           )}
-                          <img
-                            src={result.aboutThisImage.headerImage}
-                            alt="Analyzed"
-                            className="rounded-lg max-h-48 object-cover"
-                          />
                         </div>
-                      )}
-
-                      {result.pageResults && result.pageResults.length > 0 && (
-                        <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4">
+                        <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
                           <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-3">
-                            Sources (Web, News, PolitiFact, Snopes)
+                            Sources
                           </span>
-                          <ul className="space-y-2">
-                            {result.pageResults.slice(0, 12).map((p, i) => (
-                              <li key={i} className="text-sm">
-                                {p.source && (
-                                  <span className="text-zinc-500 text-xs uppercase mr-2">
-                                    [{p.source}]
-                                  </span>
-                                )}
-                                <a
-                                  href={p.link}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-zinc-300 hover:text-white transition-colors"
-                                >
-                                  {p.title}
-                                </a>
-                                {p.snippet && (
-                                  <p className="text-zinc-500 text-xs mt-0.5 line-clamp-2">{p.snippet}</p>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
+                          {otherSources.length > 0 ? (
+                            <ul className="space-y-2">
+                              {otherSources.slice(0, 10).map((p, i) => (
+                                <li key={i} className="text-sm">
+                                  <a
+                                    href={p.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-zinc-300 hover:text-white transition-colors"
+                                  >
+                                    {p.title}
+                                  </a>
+                                  {p.snippet && (
+                                    <p className="text-zinc-500 text-xs mt-0.5 line-clamp-2">{p.snippet}</p>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-zinc-500">No sources returned.</p>
+                          )}
                         </div>
-                      )}
+                      </div>
+
+                      {/* Right 1/3: Score | About this image | Fact-check sites */}
+                      <div className="flex flex-col gap-6">
+                        <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
+                          <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-2">
+                            Score
+                          </span>
+                          {stats.isUnverifiable ? (
+                            <p className="text-2xl font-display text-zinc-500">—</p>
+                          ) : (
+                            <>
+                              <p className="text-3xl font-display text-white">{stats.displayPct}%</p>
+                              <p className="text-xs text-zinc-500 mt-1">{stats.scoreLabel}</p>
+                            </>
+                          )}
+                        </div>
+
+                        {result.aboutThisImage && (result.aboutThisImage.headerImage || result.aboutThisImage.headerTitle) && (
+                          <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
+                            <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-3">
+                              About this image
+                            </span>
+                            {result.aboutThisImage.headerTitle && (
+                              <p className="text-zinc-100 font-medium mb-2">
+                                {result.aboutThisImage.headerTitle}
+                              </p>
+                            )}
+                            {result.aboutThisImage.headerImage && (
+                              <img
+                                src={result.aboutThisImage.headerImage}
+                                alt="Analyzed"
+                                className="rounded-lg w-full max-h-40 object-cover"
+                              />
+                            )}
+                          </div>
+                        )}
+
+                        <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
+                          <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-3">
+                            Fact-check sites
+                          </span>
+                          {factCheckSources.length > 0 ? (
+                            <ul className="space-y-2">
+                              {factCheckSources.map((p, i) => (
+                                <li key={i} className="text-sm">
+                                  <a
+                                    href={p.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-zinc-300 hover:text-white transition-colors"
+                                  >
+                                    {p.title}
+                                  </a>
+                                  {p.source && (
+                                    <span className="text-zinc-500 text-xs block mt-0.5">{p.source}</span>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-zinc-500">
+                              No PolitiFact or Snopes results in this response.
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
-              </section>
-            )}
-          </div>
+            </section>
+          )}
         </main>
       </div>
     </div>
