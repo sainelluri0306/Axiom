@@ -5,6 +5,7 @@ import Nav from "@/components/Nav";
 import PaperTrailsLogo from "@/components/PaperTrailsLogo";
 import TextEncrypted from "@/components/TextEncrypted";
 import skyline from "@/assets/skyline.jpg";
+import magnifyingGlassGif from "@/assets/icons8-magnifying-glass.gif";
 
 type TimelineNode = {
   label: string;
@@ -524,11 +525,23 @@ export default function Home() {
             </form>
 
             {loading && (
-              <p className="mt-4 text-sm text-zinc-500">
-                {detectedScenarios.includes("image") && "Tracing image… "}
-                {detectedScenarios.includes("url") && "Scraping URL… "}
-                {detectedScenarios.includes("text") && "Fact-checking…"}
-              </p>
+              <div
+                className="fixed inset-0 z-[20] flex flex-col items-center justify-center gap-6 bg-black/75 backdrop-blur-sm"
+                aria-live="polite"
+                aria-busy="true"
+              >
+                <img
+                  src={magnifyingGlassGif.src ?? magnifyingGlassGif}
+                  alt=""
+                  className="h-16 w-16 sm:h-20 sm:w-20 invert"
+                  aria-hidden
+                />
+                <p className="text-sm text-zinc-400">
+                  {detectedScenarios.includes("image") && "Tracing image… "}
+                  {detectedScenarios.includes("url") && "Scraping URL… "}
+                  {detectedScenarios.includes("text") && "Fact-checking…"}
+                </p>
+              </div>
             )}
 
             {error && (
@@ -572,7 +585,7 @@ export default function Home() {
                   return (
                     <div
                       key={resultIdx}
-                      className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start"
+                      className="results-dashboard grid grid-cols-1 lg:grid-cols-3 gap-6 items-start"
                     >
                       {/* Left 1/3: Timeline */}
                       <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
@@ -585,14 +598,6 @@ export default function Home() {
                         >
                           {result.timeline && result.timeline.length > 0 ? (
                             result.timeline.map((node, i) => {
-                              const xLink = pageResults.find((p) => {
-                                try {
-                                  const h = new URL(p.link).hostname.toLowerCase();
-                                  return h === "x.com" || h === "twitter.com";
-                                } catch {
-                                  return false;
-                                }
-                              });
                               return (
                                 <div
                                   key={i}
@@ -617,28 +622,16 @@ export default function Home() {
                                     <p className="text-sm text-zinc-400 leading-relaxed mb-2">
                                       {node.description || result.explanation || "—"}
                                     </p>
-                                    {(xLink || node.link) && (
+                                    {node.link && (
                                       <div className="text-xs text-zinc-500 space-y-1">
-                                        {xLink && (
-                                          <a
-                                            href={xLink.link}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="hover:text-zinc-400 block"
-                                          >
-                                            Original post on X ↗
-                                          </a>
-                                        )}
-                                        {node.link && (
-                                          <a
-                                            href={node.link}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="hover:text-zinc-400 block"
-                                          >
-                                            Source: {getDomain(node.link)}
-                                          </a>
-                                        )}
+                                        <a
+                                          href={node.link}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="hover:text-zinc-400 block"
+                                        >
+                                          Source: {getDomain(node.link)}
+                                        </a>
                                       </div>
                                     )}
                                   </div>
@@ -667,7 +660,7 @@ export default function Home() {
                       </div>
 
                       {/* Middle 1/3: Verdict (no %) + Sources */}
-                      <div className="flex flex-col gap-6">
+                      <div className="flex min-w-0 flex-col gap-6">
                         <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
                           <p className="text-lg font-medium text-white mb-2">
                             {result.verdict}
@@ -683,27 +676,38 @@ export default function Home() {
                             </p>
                           )}
                         </div>
-                        <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
+                        <div className="relevant-sources w-full min-w-0 overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
                           <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-3">
-                            Sources
+                            Relevant sources
                           </span>
                           {otherSources.length > 0 ? (
-                            <ul className="space-y-2">
-                              {otherSources.slice(0, 10).map((p, i) => (
-                                <li key={i} className="text-sm">
-                                  <a
-                                    href={p.link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-zinc-300 hover:text-white transition-colors"
-                                  >
-                                    {p.title}
-                                  </a>
-                                  {p.snippet && (
-                                    <p className="text-zinc-500 text-xs mt-0.5 line-clamp-2">{p.snippet}</p>
-                                  )}
-                                </li>
-                              ))}
+                            <ul className="min-w-0 w-full space-y-2 overflow-hidden">
+                              {otherSources.slice(0, 10).map((p, i) => {
+                                const domain = getDomain(p.link);
+                                return (
+                                  <li key={i} className="min-w-0 w-full overflow-hidden">
+                                    <a
+                                      href={p.link}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex w-full min-w-0 items-center gap-3 overflow-hidden rounded-full bg-white/[0.06] px-4 py-2.5 text-left transition-colors hover:bg-white/[0.1]"
+                                    >
+                                      <img
+                                        src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`}
+                                        alt=""
+                                        className="h-5 w-5 shrink-0 rounded-full object-cover"
+                                        aria-hidden
+                                      />
+                                      <span className="shrink-0 text-xs text-zinc-400">
+                                        {domain}
+                                      </span>
+                                      <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-zinc-200" title={p.title || undefined}>
+                                        {p.title || "Untitled"}
+                                      </span>
+                                    </a>
+                                  </li>
+                                );
+                              })}
                             </ul>
                           ) : (
                             <p className="text-sm text-zinc-500">No sources returned.</p>
