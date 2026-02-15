@@ -189,6 +189,19 @@ Missing optional keys are handled gracefully (e.g. no second opinion, no Blob up
 
 ---
 
+## Site icon (favicon)
+
+The app uses a **generated icon** from `app/icon.tsx`: a dark square with “PT” in white. Next.js serves it as the favicon and tab icon automatically.
+
+**To use your own icon instead:**
+
+- **Option A — favicon only:** Add a `favicon.ico` file to the `app/` directory (e.g. 32×32). Next.js will prefer it for the favicon; the generated `icon.tsx` still provides other sizes if needed.
+- **Option B — replace the generated icon:** Remove `app/icon.tsx` and add image file(s) in `app/` with the [Next.js metadata file names](https://nextjs.org/docs/app/api-reference/file-conventions/metadata/app-icons): `icon.png` (or `icon.ico`), and optionally `apple-icon.png` for Apple devices. Supported formats: `.ico`, `.png`, `.jpg`, `.svg` for `icon`; `.jpg`, `.png` for `apple-icon`.
+
+No changes to `layout.tsx` are required; Next.js reads these files from `app/` automatically.
+
+---
+
 ## Run locally
 
 ```bash
@@ -207,6 +220,7 @@ Open [http://localhost:3000](http://localhost:3000). Paste an image URL, paste o
 app/
   page.tsx              # Main UI: hero input, submit, results dashboard (timeline, verdict, score, sources, cross-examination)
   layout.tsx            # Root layout, fonts, footer
+  icon.tsx              # Generated site icon (favicon / tab icon); replace with favicon.ico or icon.png if desired
   globals.css           # Theme, timeline and verdict styling
   api/
     analyze/route.ts    # Image pipeline: Blob (optional) → SerpAPI Lens → Bedrock → response; Blob cleanup
