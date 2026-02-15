@@ -3,6 +3,7 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 import { getBackboardSecondOpinion } from "@/lib/backboard";
+import { getGeminiSecondOpinion } from "@/lib/gemini";
 
 const SERPAPI_BASE = "https://serpapi.com/search.json";
 const FACT_CHECK_API = "https://factchecktools.googleapis.com/v1alpha1/claims:search";
@@ -758,20 +759,20 @@ Return ONLY valid JSON, no markdown. Use this exact structure:
       }
     }
 
-    // Backboard second opinion: only when still UNVERIFIED
+    // Backboard + Gemini second opinion: only when still UNVERIFIED (parallel for speed)
     if (verdict.toUpperCase().includes("UNVERIFIED")) {
       const urlClaim = userClaim || `${scraped.title || ""} ${scraped.description || ""}`.trim().slice(0, 300) || url;
-      const contextSummary = [searchContextText, factCheckContext].filter(Boolean).join("\n");
-      const backboard = await getBackboardSecondOpinion(
-        urlClaim,
-        contextSummary || "No search results.",
-        process.env.BACKBOARD_API_KEY?.trim()
-      );
-      if (backboard) {
-        verdict = backboard.verdict;
-        score = backboard.score;
+      const contextSummary = [searchContextText, factCheckContext].filter(Boolean).join("\n") || "No search results.";
+      const [backboard, gemini] = await Promise.all([
+        getBackboardSecondOpinion(urlClaim, contextSummary, process.env.BACKBOARD_API_KEY?.trim()),
+        getGeminiSecondOpinion(urlClaim, contextSummary, process.env.GEMINI_API_KEY?.trim()),
+      ]);
+      const secondOpinion = backboard || gemini;
+      if (secondOpinion) {
+        verdict = secondOpinion.verdict;
+        score = secondOpinion.score;
         if (!explanation) {
-          explanation = `Second-opinion analysis suggests ${backboard.verdict}.`;
+          explanation = `Second-opinion analysis suggests ${secondOpinion.verdict}.`;
         }
       }
     }
