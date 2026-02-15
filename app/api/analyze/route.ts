@@ -18,6 +18,21 @@ export type VisualMatch = {
   date: string;
 };
 
+/** One page from About This Image sections (date, link, title, snippet for timeline). */
+export type PageResultItem = {
+  date: string;
+  link: string;
+  title: string;
+  snippet: string | null;
+};
+
+/** About This Image: header blurb + page_results for timeline bento. */
+export type AboutThisImageData = {
+  headerTitle: string | null;
+  headerImage: string | null;
+  pageResults: PageResultItem[];
+};
+
 export type AnalysisResult = {
   verdict: string;
   score: number;
@@ -27,27 +42,37 @@ export type AnalysisResult = {
     knowledgeGraphTitle: string | null;
     visualMatches: VisualMatch[];
   };
+  /** From SerpApi type=about_this_image: header + page_results for bento UI. */
+  aboutThisImage?: AboutThisImageData;
 };
 
-function parseSerpLensResponse(data: Record<string, unknown>): {
-  knowledgeGraphTitle: string | null;
-  visualMatches: VisualMatch[];
-} {
-  const kg = data.knowledge_graph as Record<string, unknown> | undefined;
-  const title =
-    typeof kg?.title === "string" ? kg.title : null;
+function parseAboutThisImageResponse(data: Record<string, unknown>): AboutThisImageData | null {
+  const ati = data.about_this_image as Record<string, unknown> | undefined;
+  if (!ati) return null;
 
-  const rawMatches = (data.visual_matches as unknown[] | undefined) ?? [];
-  const visualMatches: VisualMatch[] = rawMatches.slice(0, 5).map((m: unknown) => {
-    const row = m as Record<string, unknown>;
-    return {
-      source: typeof row.source === "string" ? row.source : "Unknown",
-      title: typeof row.title === "string" ? row.title : "Unknown",
-      date: typeof (row as { date?: string }).date === "string" ? (row as { date: string }).date : "N/A",
-    };
-  });
+  const header = ati.header as Record<string, unknown> | undefined;
+  const headerTitle =
+    typeof header?.title === "string" ? header.title : null;
+  const headerImage =
+    typeof header?.image === "string" ? header.image : null;
 
-  return { knowledgeGraphTitle: title, visualMatches };
+  const sections = (ati.sections as unknown[] | undefined) ?? [];
+  const pageResults: PageResultItem[] = [];
+  for (const sec of sections) {
+    const section = sec as Record<string, unknown>;
+    const results = (section.page_results as unknown[] | undefined) ?? [];
+    for (const r of results) {
+      const row = r as Record<string, unknown>;
+      pageResults.push({
+        date: typeof row.date === "string" ? row.date : "N/A",
+        link: typeof row.link === "string" ? row.link : "",
+        title: typeof row.title === "string" ? row.title : "Unknown",
+        snippet: typeof row.snippet === "string" ? row.snippet : null,
+      });
+    }
+  }
+
+  return { headerTitle, headerImage, pageResults };
 }
 
 function buildNoDigitalFootprintResult(): AnalysisResult {
@@ -55,11 +80,16 @@ function buildNoDigitalFootprintResult(): AnalysisResult {
     verdict: "No Digital Footprint",
     score: 0,
     explanation:
-      "No visual matches were found for this image. The image may be rare, heavily edited, or not widely indexed.",
+      "No About This Image data was found for this image. The image may be rare, heavily edited, or not widely indexed.",
     timeline: [],
     imageHistory: {
       knowledgeGraphTitle: null,
       visualMatches: [],
+    },
+    aboutThisImage: {
+      headerTitle: null,
+      headerImage: null,
+      pageResults: [],
     },
   };
 }
@@ -85,12 +115,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // —— Step A: Trace via Google Lens (SerpApi) ——
+    // —— Step A: Trace via Google Lens About This Image (SerpApi) ——
     const serpParams = new URLSearchParams({
       engine: "google_lens",
       url: imageUrl,
       api_key: apiKey,
-      type: "all",
+      type: "about_this_image",
     });
     let serpData: Record<string, unknown>;
     try {
@@ -122,17 +152,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(buildNoDigitalFootprintResult());
     }
 
-    // —— Step B: Parse ——
-    const { knowledgeGraphTitle, visualMatches } = parseSerpLensResponse(serpData);
-
-    // 0 matches → No Digital Footprint (skip Bedrock)
-    if (visualMatches.length === 0) {
-      return NextResponse.json(buildNoDigitalFootprintResult());
+    // —— Step B: Parse About This Image (header + page_results) ——
+    const aboutThisImage = parseAboutThisImageResponse(serpData);
+    if (!aboutThisImage || aboutThisImage.pageResults.length === 0) {
+      return NextResponse.json({
+        ...buildNoDigitalFootprintResult(),
+        aboutThisImage: aboutThisImage ?? { headerTitle: null, headerImage: null, pageResults: [] },
+      });
     }
 
+    const hostname = (url: string) => {
+      try {
+        return new URL(url).hostname;
+      } catch {
+        return "Unknown";
+      }
+    };
     const imageHistory = {
-      knowledgeGraphTitle,
-      visualMatches,
+      knowledgeGraphTitle: aboutThisImage.headerTitle,
+      visualMatches: aboutThisImage.pageResults.slice(0, 15).map((p) => ({
+        source: hostname(p.link),
+        title: p.title,
+        date: p.date,
+      })),
     };
 
     // —— Step C: Deduce via AWS Bedrock (Claude 3.5 Sonnet) ——
@@ -158,10 +200,10 @@ export async function POST(request: NextRequest) {
     });
 
     const imageHistoryText = [
-      knowledgeGraphTitle ? `Identified subject: ${knowledgeGraphTitle}` : "",
-      "Visual matches (source, title, date):",
-      ...visualMatches.map(
-        (m) => `- ${m.source} | ${m.title} | ${m.date}`
+      aboutThisImage.headerTitle ? `About this image: ${aboutThisImage.headerTitle}` : "",
+      "Found on these pages (date | title | context):",
+      ...aboutThisImage.pageResults.slice(0, 15).map(
+        (p) => `- ${p.date} | ${p.title} | ${p.snippet ?? "(no snippet)"}`
       ),
     ]
       .filter(Boolean)
@@ -236,6 +278,7 @@ Return ONLY valid JSON with no markdown, no code fences, no explanation outside 
           )
         : [],
       imageHistory,
+      aboutThisImage,
     };
 
     return NextResponse.json(result);
