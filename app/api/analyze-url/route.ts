@@ -224,7 +224,7 @@ function detectFactCheckVerdict(
   url: string,
   scraped: { title: string; description: string; body: string }
 ): { verdict: string; score: number } | null {
-  if (!/politifact\.com|snopes\.com|factcheck\.org/i.test(url)) return null;
+  if (!/politifact\.com|snopes\.com|factcheck\.org|factcheck\.afp\.com/i.test(url)) return null;
 
   const text = `${scraped.title} ${scraped.description} ${scraped.body}`.toLowerCase();
 
@@ -234,7 +234,7 @@ function detectFactCheckVerdict(
     /we rate .+ false/i,
     /rated false|rates? (?:this|it) false/i,
     /pants on fire|pants-fire/i,
-    /\bfalse\b.*(?:politifact|snopes|fact.?check)/i,
+    /\bfalse\b.*(?:politifact|snopes|fact.?check|afp)/i,
     /(?:that|it) wasn't |(?:that|it) was not |(?:that|it) is not /i,
     /^no,? .+ (?:wasn't|was not|is not)/im,
     /(?:it|that) wasn't (?:conejo|liam|ramos)/i,
@@ -247,7 +247,7 @@ function detectFactCheckVerdict(
   const truePatterns = [
     /we rate (?:claims? that .+? )?(?:as )?true/i,
     /rated true|rates? (?:this|it) true/i,
-    /\btrue\b.*(?:politifact|snopes)/i,
+    /\btrue\b.*(?:politifact|snopes|afp)/i,
     /mostly true/i,
   ];
   if (truePatterns.some((p) => p.test(text))) {
@@ -386,9 +386,9 @@ function verdictFromSnippets(
     .toLowerCase();
   if (!combined) return null;
   const falseMatch = /(?:rated?|rate|rates)\s+(?:as\s+)?(?:false|pants\s*[- ]?on\s*fire|full\s*flop)|(?:false|pants\s*on\s*fire|debunked|fake|hoax|misleading)/.test(combined) ||
-    /\b(?:false|debunked|misleading|incorrect)\b.*(?:politifact|snopes|factcheck)/.test(combined);
+    /\b(?:false|debunked|misleading|incorrect)\b.*(?:politifact|snopes|factcheck|afp)/.test(combined);
   const trueMatch = /(?:rated?|rate|rates)\s+(?:as\s+)?(?:true|mostly\s*true|promise\s*kept)|(?:true|mostly\s*true|correct|accurate)/.test(combined) ||
-    /\b(?:true|mostly\s*true|correct)\b.*(?:politifact|snopes|factcheck)/.test(combined);
+    /\b(?:true|mostly\s*true|correct)\b.*(?:politifact|snopes|factcheck|afp)/.test(combined);
   const mixedMatch = /(?:half\s*true|mixed|partly\s*true|partly\s*false)/.test(combined);
   if (falseMatch && !trueMatch) return { verdict: "FALSE", score: 88 };
   if (trueMatch && !falseMatch) return { verdict: "TRUE", score: 15 };
@@ -483,7 +483,7 @@ export async function POST(request: NextRequest) {
     // —— Step B2: Google Fact Check API + SerpAPI ——
     const factCheckKey = process.env.GOOGLE_FACT_CHECK_API_KEY?.trim();
     const shortQuery = searchQuery.length > 80 ? searchQuery.slice(0, 80) : searchQuery;
-    const [factCheckRes1, factCheckRes2, generalRes, newsRes, factCheckSearchRes, politifactRes, snopesRes, factcheckOrgRes] =
+    const [factCheckRes1, factCheckRes2, generalRes, newsRes, factCheckSearchRes, politifactRes, snopesRes, factcheckOrgRes, afpRes] =
       await Promise.all([
         factCheckKey ? fetchFactChecks(factCheckKey, searchQuery) : Promise.resolve([] as FactCheckResult[]),
         factCheckKey && searchQuery !== shortQuery ? fetchFactChecks(factCheckKey, shortQuery) : Promise.resolve([] as FactCheckResult[]),
@@ -493,6 +493,7 @@ export async function POST(request: NextRequest) {
         runSerpSearch(apiKey, `site:politifact.com ${searchQuery}`),
         runSerpSearch(apiKey, `site:snopes.com ${searchQuery}`),
         runSerpSearch(apiKey, `site:factcheck.org ${searchQuery}`),
+        runSerpSearch(apiKey, `site:factcheck.afp.com ${searchQuery}`),
       ]);
 
     const factCheckRes: FactCheckResult[] = [...factCheckRes1];
@@ -508,6 +509,7 @@ export async function POST(request: NextRequest) {
       ...politifactRes.slice(0, 8).map((r) => toPageResult(r, "PolitiFact")),
       ...snopesRes.slice(0, 8).map((r) => toPageResult(r, "Snopes")),
       ...factcheckOrgRes.slice(0, 8).map((r) => toPageResult(r, "FactCheck.org")),
+      ...afpRes.slice(0, 8).map((r) => toPageResult(r, "AFP")),
     ];
 
     const seen = new Set<string>();
@@ -704,7 +706,7 @@ Return ONLY valid JSON, no markdown. Use this exact structure:
 
     // Override: PolitiFact/Snopes/FactCheck snippets contain clear verdicts
     if (verdict.toUpperCase().includes("UNVERIFIED")) {
-      const snippetVerdict = verdictFromSnippets(uniqueResults, ["PolitiFact", "Snopes", "FactCheck", "FactCheck.org"]);
+      const snippetVerdict = verdictFromSnippets(uniqueResults, ["PolitiFact", "Snopes", "FactCheck", "FactCheck.org", "AFP"]);
       if (snippetVerdict) {
         verdict = snippetVerdict.verdict;
         score = snippetVerdict.score;

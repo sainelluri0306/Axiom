@@ -593,8 +593,10 @@ export default function Home() {
                     return (
                       s.includes("politifact") ||
                       s.includes("snopes") ||
+                      s.includes("afp") ||
                       link.includes("politifact") ||
-                      link.includes("snopes")
+                      link.includes("snopes") ||
+                      link.includes("factcheck.afp")
                     );
                   });
                   const otherSources = pageResults.filter((p) => {
@@ -603,8 +605,10 @@ export default function Home() {
                     return (
                       !s.includes("politifact") &&
                       !s.includes("snopes") &&
+                      !s.includes("afp") &&
                       !link.includes("politifact") &&
-                      !link.includes("snopes")
+                      !link.includes("snopes") &&
+                      !link.includes("factcheck.afp")
                     );
                   });
 

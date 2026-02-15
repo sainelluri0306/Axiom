@@ -177,9 +177,9 @@ function verdictFromSnippets(
     .toLowerCase();
   if (!combined) return null;
   const falseMatch = /(?:rated?|rate|rates)\s+(?:as\s+)?(?:false|pants\s*[- ]?on\s*fire|pants\s*on\s*fire|full\s*flop)|(?:false|pants\s*on\s*fire|debunked|fake|hoax|misleading)/.test(combined) ||
-    /\b(?:false|debunked|misleading|incorrect)\b.*(?:politifact|snopes|factcheck)/.test(combined);
+    /\b(?:false|debunked|misleading|incorrect)\b.*(?:politifact|snopes|factcheck|afp)/.test(combined);
   const trueMatch = /(?:rated?|rate|rates)\s+(?:as\s+)?(?:true|mostly\s*true|promise\s*kept)|(?:true|mostly\s*true|correct|accurate)/.test(combined) ||
-    /\b(?:true|mostly\s*true|correct)\b.*(?:politifact|snopes|factcheck)/.test(combined);
+    /\b(?:true|mostly\s*true|correct)\b.*(?:politifact|snopes|factcheck|afp)/.test(combined);
   const mixedMatch = /(?:half\s*true|mixed|partly\s*true|partly\s*false)/.test(combined);
   if (falseMatch && !trueMatch) return { verdict: "FALSE", score: 88 };
   if (trueMatch && !falseMatch) return { verdict: "TRUE", score: 15 };
@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
     // General web (1yr) + News + fact-check sites — no date limit on fact-checkers (older debunks matter)
     const factCheckKey = process.env.GOOGLE_FACT_CHECK_API_KEY?.trim();
     const shortClaim = claim.length > 80 ? claim.slice(0, 80) : claim;
-    const [factCheckRes1, factCheckRes2, generalRes, newsRes, factCheckSearchRes, politifactRes, snopesRes, factcheckOrgRes] =
+    const [factCheckRes1, factCheckRes2, generalRes, newsRes, factCheckSearchRes, politifactRes, snopesRes, factcheckOrgRes, afpRes] =
       await Promise.all([
         factCheckKey ? fetchFactChecks(factCheckKey, claim) : Promise.resolve([] as FactCheckResult[]),
         factCheckKey && claim !== shortClaim ? fetchFactChecks(factCheckKey, shortClaim) : Promise.resolve([] as FactCheckResult[]),
@@ -221,6 +221,7 @@ export async function POST(request: NextRequest) {
         runSerpSearch(apiKey, `site:politifact.com ${claim}`),
         runSerpSearch(apiKey, `site:snopes.com ${claim}`),
         runSerpSearch(apiKey, `site:factcheck.org ${claim}`),
+        runSerpSearch(apiKey, `site:factcheck.afp.com ${claim}`),
       ]);
 
     const factCheckRes = [...factCheckRes1];
@@ -235,6 +236,7 @@ export async function POST(request: NextRequest) {
       ...politifactRes.slice(0, 10).map((r) => toPageResult(r, "PolitiFact")),
       ...snopesRes.slice(0, 10).map((r) => toPageResult(r, "Snopes")),
       ...factcheckOrgRes.slice(0, 8).map((r) => toPageResult(r, "FactCheck.org")),
+      ...afpRes.slice(0, 8).map((r) => toPageResult(r, "AFP")),
     ];
 
     // Dedupe by link
@@ -393,7 +395,7 @@ Return ONLY valid JSON, no markdown. Use this exact structure:
 
     // Override UNVERIFIED when PolitiFact/Snopes/FactCheck snippets contain clear verdicts
     if (verdict.toUpperCase().includes("UNVERIFIED")) {
-      const snippetVerdict = verdictFromSnippets(uniqueResults, ["PolitiFact", "Snopes", "FactCheck", "FactCheck.org"]);
+      const snippetVerdict = verdictFromSnippets(uniqueResults, ["PolitiFact", "Snopes", "FactCheck", "FactCheck.org", "AFP"]);
       if (snippetVerdict) {
         verdict = snippetVerdict.verdict;
         score = snippetVerdict.score;
