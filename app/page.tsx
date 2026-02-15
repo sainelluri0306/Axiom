@@ -5,11 +5,18 @@ import Link from "next/link";
 import Nav from "@/components/Nav";
 import HeroInput from "@/components/HeroInput";
 
+type TimelineNode = {
+  label: string;
+  date: string;
+  description: string;
+  link: string;
+};
+
 type AnalysisResult = {
   verdict: string;
   score: number;
   explanation: string;
-  timeline: Array<{ year: string; event: string }>;
+  timeline?: TimelineNode[];
   imageHistory?: {
     knowledgeGraphTitle: string | null;
     visualMatches: Array<{ source: string; title: string; date: string }>;
@@ -133,13 +140,16 @@ export default function Home() {
                     <p className="mt-1 text-lg font-medium text-white">{result.verdict}</p>
                     <p className="mt-2 text-3xl font-display text-white">Fake Score: {result.score}%</p>
                     <p className="mt-2 text-sm text-zinc-400">{result.explanation}</p>
-                    {result.timeline.length > 0 && (
+                    {result.timeline && result.timeline.length > 0 && (
                       <div className="mt-4">
                         <h4 className="text-sm text-zinc-500 uppercase tracking-wider">Timeline</h4>
                         <ul className="mt-2 space-y-2">
                           {result.timeline.map((t, i) => (
                             <li key={i} className="text-sm text-zinc-300">
-                              <span className="text-zinc-500">{t.year}</span> — {t.event}
+                              <span className="text-zinc-500">{t.date}</span> — <span className="font-medium text-zinc-200">{t.label}</span>: {t.description}
+                              {t.link && (
+                                <a href={t.link} target="_blank" rel="noopener noreferrer" className="ml-1 text-zinc-500 hover:text-zinc-400">↗</a>
+                              )}
                             </li>
                           ))}
                         </ul>

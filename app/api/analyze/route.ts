@@ -33,11 +33,20 @@ export type AboutThisImageData = {
   pageResults: PageResultItem[];
 };
 
+/** One timeline node built by Claude from the image story (variable count). */
+export type TimelineNode = {
+  label: string;
+  date: string;
+  description: string;
+  link: string;
+};
+
 export type AnalysisResult = {
   verdict: string;
   score: number;
   explanation: string;
-  timeline: Array<{ year: string; event: string }>;
+  /** Variable-length timeline (2 = creation + current, 3 = original + doctored + current, etc.). */
+  timeline: TimelineNode[];
   imageHistory?: {
     knowledgeGraphTitle: string | null;
     visualMatches: VisualMatch[];
@@ -201,23 +210,28 @@ export async function POST(request: NextRequest) {
 
     const imageHistoryText = [
       aboutThisImage.headerTitle ? `About this image: ${aboutThisImage.headerTitle}` : "",
-      "Found on these pages (date | title | context):",
-      ...aboutThisImage.pageResults.slice(0, 15).map(
-        (p) => `- ${p.date} | ${p.title} | ${p.snippet ?? "(no snippet)"}`
+      "Found on these pages (use these exact link URLs when you assign a link to a timeline node):",
+      ...aboutThisImage.pageResults.slice(0, 20).map(
+        (p) => `- date: ${p.date} | title: ${p.title} | snippet: ${p.snippet ?? "(none)"} | link: ${p.link}`
       ),
     ]
       .filter(Boolean)
       .join("\n");
 
-    const userPrompt = `You are a context forensics analyst. Compare the User Claim vs. the Image History below. Determine if the image's context has been hijacked (e.g. misattributed event, wrong place/time, misleading caption).
+    const userPrompt = `You are a context forensics analyst. Compare the User Claim vs. the Image History below. Determine if the image's context has been hijacked (e.g. misattributed event, wrong place/time, misleading caption, or doctored image).
 
 User Claim: ${userClaim}
 
 Image History:
 ${imageHistoryText}
 
-Return ONLY valid JSON with no markdown, no code fences, no explanation outside the JSON. Use this exact structure:
-{"verdict":"string (e.g. CONTEXT HIJACKED or CONTEXT ACCURATE)","score":number 0-100 (higher = more likely context is wrong/hijacked),"explanation":"string","timeline":[{"year":"string","event":"string"}]}`;
+Build a timeline that tells the image's story. Use as many nodes as the story needs (not a fixed number):
+- Simple case: 2 nodes (earliest/first use, current use).
+- If the image was altered/doctored: 3+ nodes (e.g. original image → doctored version → current context).
+- More nodes if there are other distinct moments (e.g. first viral use, then alteration, then current).
+Each timeline node must use a "link" URL from the Image History list above (pick the entry that best matches that moment).
+Return ONLY valid JSON with no markdown, no code fences. Use this exact structure:
+{"verdict":"string (e.g. CONTEXT HIJACKED or CONTEXT ACCURATE)","score":number 0-100 (higher = more likely context is wrong/hijacked),"explanation":"string","timeline":[{"label":"short label e.g. Original image","date":"date from the data","description":"context for this moment in 1-2 sentences","link":"URL from Image History"}]}`;
 
     const bedrockBody = {
       anthropic_version: "bedrock-2023-05-31",
@@ -267,16 +281,22 @@ Return ONLY valid JSON with no markdown, no code fences, no explanation outside 
       }
     }
 
+    const timelineNodes: TimelineNode[] = Array.isArray(parsed.timeline)
+      ? parsed.timeline
+          .filter((t): t is Record<string, unknown> => t != null && typeof t === "object")
+          .map((t) => ({
+            label: typeof t.label === "string" ? t.label : "Event",
+            date: typeof t.date === "string" ? t.date : "N/A",
+            description: typeof t.description === "string" ? t.description : "",
+            link: typeof t.link === "string" ? t.link : "",
+          }))
+      : [];
+
     const result: AnalysisResult = {
       verdict: typeof parsed.verdict === "string" ? parsed.verdict : "Unknown",
       score: typeof parsed.score === "number" ? Math.min(100, Math.max(0, parsed.score)) : 0,
       explanation: typeof parsed.explanation === "string" ? parsed.explanation : "",
-      timeline: Array.isArray(parsed.timeline)
-        ? parsed.timeline.filter(
-            (t): t is { year: string; event: string } =>
-              t != null && typeof (t as { year?: string }).year === "string" && typeof (t as { event?: string }).event === "string"
-          )
-        : [],
+      timeline: timelineNodes,
       imageHistory,
       aboutThisImage,
     };
