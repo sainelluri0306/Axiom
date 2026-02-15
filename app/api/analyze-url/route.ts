@@ -50,6 +50,8 @@ async function fetchFactChecks(apiKey: string, query: string): Promise<FactCheck
 
 export type AnalyzeUrlBody = {
   url: string;
+  /** Optional claim or context from the user (e.g. when URL + text is pasted). */
+  claim?: string;
 };
 
 export type PageResultItem = {
@@ -409,6 +411,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Partial<AnalyzeUrlBody>;
     let url = body?.url?.trim();
+    const userClaim = body?.claim?.trim();
 
     if (!url) {
       return NextResponse.json({ error: "Missing url" }, { status: 400 });
@@ -473,6 +476,9 @@ export async function POST(request: NextRequest) {
         ? (scraped.body || scraped.description || scraped.title).slice(0, 200)
         : scraped.title || scraped.description?.slice(0, 100) || scraped.body?.slice(0, 150) || url;
     searchQuery = searchQuery.replace(/https?:\/\/\S+|pic\.twitter\.com\/\S+/g, "").trim() || searchQuery;
+    if (userClaim) {
+      searchQuery = `${searchQuery} ${userClaim}`.trim().slice(0, 250);
+    }
 
     // —— Step B1: If tweet has image, run Google Lens About This Image ——
     let aboutThisImageResults: PageResultItem[] = [];
@@ -573,7 +579,10 @@ Pages where this image appears (from About This Image):\n` +
           ? `\n\nIMAGE IN POST: The tweet contains an image (${scraped.imageUrls[0]}). No About This Image data was found — use search results to verify the claim.`
           : "";
 
-    const userPrompt = `You are a fact-checking analyst. Give ACCURATE verdicts. Avoid UNVERIFIED when evidence exists. A user submitted a URL. We scraped the page content below.${isImageTweet ? " This is an image tweet: use the title/caption as the claim and verify against the image's About This Image context and search results." : ""}
+    const claimNote = userClaim
+      ? ` The user also provided this specific claim/context to verify: "${userClaim}"`
+      : "";
+    const userPrompt = `You are a fact-checking analyst. Give ACCURATE verdicts. Avoid UNVERIFIED when evidence exists. A user submitted a URL. We scraped the page content below.${claimNote}${isImageTweet ? " This is an image tweet: use the title/caption as the claim and verify against the image's About This Image context and search results." : ""}
 
 SCRAPED PAGE (from ${url}):
 Title: ${scraped.title || "(none)"}
