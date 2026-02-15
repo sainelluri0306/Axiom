@@ -417,9 +417,9 @@ export default function Home() {
                 />
               </h1>
               <p
-                className="font-jost mx-auto max-w-2xl px-4 text-base tracking-wider text-zinc-500 sm:text-lg"
+                className="font-jost mx-auto max-w-2xl px-4 text-base tracking-wider text-zinc-400 sm:text-lg"
                 style={{
-                  textShadow: "0 0 10px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.7), 0 0 40px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.8)",
+                  textShadow: "0 3px 6px black, 0 6px 12px black, 0 8px 24px rgba(0,0,0,0.9), 0 0 10px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.7), 0 0 40px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.9)",
                 }}
               >
                 <TextEncrypted
