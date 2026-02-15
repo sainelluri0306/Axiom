@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import PaperTrailsLogo from "@/components/PaperTrailsLogo";
 import TextEncrypted from "@/components/TextEncrypted";
 import skyline from "@/assets/skyline.jpg";
@@ -72,6 +72,77 @@ function formatTimelineDate(dateStr: string): string {
     return `${trimmed}, ${year}`;
   }
   return trimmed;
+}
+
+/** Render explanation with **bold** and [text](url) as formatted content. */
+function renderFormattedExplanation(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  let key = 0;
+  let i = 0;
+  while (i < text.length) {
+    if (text.slice(i, i + 2) === "**") {
+      const end = text.indexOf("**", i + 2);
+      if (end !== -1) {
+        const boldContent = text.slice(i + 2, end);
+        parts.push(
+          <strong key={key++} className="font-semibold text-zinc-300">
+            {renderFormattedExplanation(boldContent)}
+          </strong>
+        );
+        i = end + 2;
+        continue;
+      }
+    }
+    if (text[i] === "[") {
+      const closeBracket = text.indexOf("]", i + 1);
+      if (closeBracket !== -1 && text[closeBracket + 1] === "(") {
+        const closeParen = text.indexOf(")", closeBracket + 2);
+        if (closeParen !== -1) {
+          const linkText = text.slice(i + 1, closeBracket);
+          const linkUrl = text.slice(closeBracket + 2, closeParen);
+          parts.push(
+            <a
+              key={key++}
+              href={linkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-zinc-300 underline hover:text-white"
+            >
+              {linkText}
+            </a>
+          );
+          i = closeParen + 1;
+          continue;
+        }
+      }
+    }
+    const nextBold = text.indexOf("**", i);
+    const nextLink = text.indexOf("[", i);
+    let end = text.length;
+    if (nextBold !== -1) end = Math.min(end, nextBold);
+    if (nextLink !== -1) end = Math.min(end, nextLink);
+    parts.push(text.slice(i, end));
+    i = end;
+  }
+  return parts.length === 1 ? parts[0] : parts;
+}
+
+/** Convert a blob URL (paste/upload) to base64 + contentType for the analyze API. */
+async function blobUrlToBase64(blobUrl: string): Promise<{ base64: string; contentType: string }> {
+  const res = await fetch(blobUrl);
+  const blob = await res.blob();
+  const contentType = blob.type || "image/jpeg";
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      const dataUrl = fr.result as string;
+      const m = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+      if (m) resolve({ contentType: m[1], base64: m[2] });
+      else reject(new Error("Could not read image data"));
+    };
+    fr.onerror = () => reject(fr.error);
+    fr.readAsDataURL(blob);
+  });
 }
 
 /** Only treat as image if URL has image extension OR is from a known image-only host. */
@@ -268,7 +339,7 @@ export default function Home() {
       heroImageSourceUrl
     );
 
-    const hasImage = imageUrls.length > 0 || (heroImagePreview && heroImageSourceUrl);
+    const hasImage = imageUrls.length > 0 || !!heroImagePreview;
     const hasPageUrl = pageUrls.length > 0;
     const hasClaim = claimText.length >= 3;
 
@@ -288,23 +359,39 @@ export default function Home() {
     let firstError: string | null = null;
 
     try {
-      const imageUrl = imageUrls[0] ?? (heroImagePreview && heroImageSourceUrl && !heroImageSourceUrl.startsWith("blob:") ? heroImageSourceUrl : null);
+      const publicImageUrl = imageUrls[0] ?? (heroImagePreview && heroImageSourceUrl && !heroImageSourceUrl.startsWith("blob:") ? heroImageSourceUrl : null);
+      const hasPastedOrUploadedImage = toRun.includes("image") && heroImagePreview?.startsWith("blob:");
       const pageUrl = pageUrls[0] ?? null;
       const claim = claimText || "Verify the context and origin of this image.";
 
       const promises: Promise<void>[] = [];
 
-      if (toRun.includes("image") && imageUrl && !imageUrl.startsWith("blob:")) {
+      if (toRun.includes("image") && (publicImageUrl || hasPastedOrUploadedImage)) {
+        const analyzePayload = async (): Promise<{ imageUrl?: string; imageData?: string; contentType?: string }> => {
+          if (publicImageUrl && !publicImageUrl.startsWith("blob:")) {
+            return { imageUrl: publicImageUrl };
+          }
+          if (heroImagePreview?.startsWith("blob:")) {
+            const { base64, contentType } = await blobUrlToBase64(heroImagePreview);
+            return { imageData: base64, contentType };
+          }
+          return {};
+        };
         promises.push(
-          fetch("/api/analyze", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              imageUrl,
-              userClaim: claim || (pageUrl ? `See also: ${pageUrl}` : "Verify the context and origin of this image."),
-            }),
-          })
+          analyzePayload()
+            .then((payload) => {
+              if (!payload.imageUrl && !payload.imageData) return;
+              return fetch("/api/analyze", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  ...payload,
+                  userClaim: claim || (pageUrl ? `See also: ${pageUrl}` : "Verify the context and origin of this image."),
+                }),
+              });
+            })
             .then(async (res) => {
+              if (!res) return;
               const data = await res.json();
               if (!res.ok) throw new Error(data.error ?? "Image analysis failed");
               allResults.push({
@@ -380,13 +467,6 @@ export default function Home() {
       await Promise.all(promises);
       setResults(allResults);
       if (allResults.length === 0 && firstError) setError(firstError);
-      else if (
-        allResults.length === 0 &&
-        toRun.includes("image") &&
-        (heroImagePreview?.startsWith("blob:") || (heroImagePreview && !imageUrl))
-      ) {
-        setError("For image analysis, paste an image URL (right-click → Copy image address). File upload requires a public URL.");
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
     } finally {
@@ -754,8 +834,8 @@ export default function Home() {
                               </p>
                             ) : null}
                             {result.explanation && (
-                              <p className="text-sm text-zinc-400 whitespace-pre-wrap">
-                                {result.explanation}
+                              <p className="text-sm text-zinc-400 leading-relaxed">
+                                {renderFormattedExplanation(result.explanation)}
                               </p>
                             )}
                           </div>
@@ -860,31 +940,31 @@ export default function Home() {
                             Cross-examination
                           </span>
                           {factCheckSources.length > 0 ? (
-                            <ul className="space-y-3">
+                            <ul className="min-w-0 w-full space-y-2 overflow-hidden">
                               {factCheckSources.map((p, i) => {
                                 const domain = getDomain(p.link);
                                 const faviconUrl = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`;
                                 return (
-                                  <li key={i} className="flex items-start gap-2.5 text-sm">
-                                    <img
-                                      src={faviconUrl}
-                                      alt=""
-                                      className="mt-0.5 h-4 w-4 shrink-0 rounded-sm object-contain"
-                                      aria-hidden
-                                    />
-                                    <div className="min-w-0 flex-1">
-                                      <a
-                                        href={p.link}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-zinc-300 hover:text-white transition-colors block"
-                                      >
-                                        {p.title}
-                                      </a>
-                                      {p.source && (
-                                        <span className="text-zinc-500 text-xs block mt-0.5">{p.source}</span>
-                                      )}
-                                    </div>
+                                  <li key={i} className="min-w-0 w-full overflow-hidden">
+                                    <a
+                                      href={p.link}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex w-full min-w-0 items-center gap-3 overflow-hidden rounded-full bg-white/[0.06] px-4 py-2.5 text-left transition-colors hover:bg-white/[0.1]"
+                                    >
+                                      <img
+                                        src={faviconUrl}
+                                        alt=""
+                                        className="h-4 w-4 shrink-0 rounded-sm object-contain"
+                                        aria-hidden
+                                      />
+                                      <span className="shrink-0 text-xs text-zinc-500">
+                                        {p.source || domain}
+                                      </span>
+                                      <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-zinc-400" title={p.title || undefined}>
+                                        {p.title || "Untitled"}
+                                      </span>
+                                    </a>
                                   </li>
                                 );
                               })}

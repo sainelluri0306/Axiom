@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
+import { del, put } from "@vercel/blob";
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 
 const SERPAPI_BASE = "https://serpapi.com/search.json";
@@ -8,7 +9,12 @@ const SERPAPI_BASE = "https://serpapi.com/search.json";
 const BEDROCK_MODEL_ID = "global.anthropic.claude-sonnet-4-20250514-v1:0";
 
 export type AnalyzeBody = {
-  imageUrl: string;
+  /** Public image URL (required if imageData not provided). */
+  imageUrl?: string;
+  /** Base64-encoded image for upload/paste; temporarily hosted so SerpAPI can fetch it. */
+  imageData?: string;
+  /** MIME type for imageData (e.g. image/png). Defaults to image/jpeg. */
+  contentType?: string;
   userClaim: string;
 };
 
@@ -123,16 +129,47 @@ function buildNoDigitalFootprintResult(): AnalysisResult {
 }
 
 export async function POST(request: NextRequest) {
+  let uploadedBlobUrl: string | null = null;
   try {
     const body = (await request.json()) as Partial<AnalyzeBody>;
-    const imageUrl = body?.imageUrl?.trim();
     const userClaim = body?.userClaim?.trim();
-
-    if (!imageUrl || !userClaim) {
+    if (!userClaim) {
       return NextResponse.json(
-        { error: "Missing imageUrl or userClaim" },
+        { error: "Missing userClaim" },
         { status: 400 }
       );
+    }
+
+    let imageUrl: string;
+    if (body?.imageData) {
+      const blobToken = process.env.BLOB_READ_WRITE_TOKEN?.trim();
+      if (!blobToken) {
+        return NextResponse.json(
+          {
+            error: "Uploaded/pasted images require temporary hosting. Set BLOB_READ_WRITE_TOKEN (Vercel Blob) in your environment, or use a public image URL instead.",
+          },
+          { status: 500 }
+        );
+      }
+      const contentType = body.contentType?.trim() || "image/jpeg";
+      const ext = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
+      const buffer = Buffer.from(body.imageData, "base64");
+      const blob = await put(`temp/analyze-${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`, buffer, {
+        access: "public",
+        contentType,
+        addRandomSuffix: true,
+        token: blobToken,
+      });
+      uploadedBlobUrl = blob.url;
+      imageUrl = blob.url;
+    } else {
+      imageUrl = body?.imageUrl?.trim() ?? "";
+      if (!imageUrl) {
+        return NextResponse.json(
+          { error: "Missing imageUrl or imageData (paste/upload sends imageData)." },
+          { status: 400 }
+        );
+      }
     }
 
     const apiKey = process.env.SERPAPI_KEY?.trim();
@@ -246,12 +283,17 @@ export async function POST(request: NextRequest) {
       .filter(Boolean)
       .join("\n");
 
-    const userPrompt = `You are a context forensics analyst. Compare the User Claim vs. the Image History below. Determine if the image's context has been hijacked (e.g. misattributed event, wrong place/time, misleading caption, or doctored image).
+    const userPrompt = `You are a dispassionate fact-checking analyst. Your goal is not to balance opinions, but to verify the chronological origin of the media. Prioritize primary source dates over commentary. Use precise, clinical language. Avoid emotive adjectives.
+
+CRITICAL — What the verdict measures:
+The verdict is about THE MEDIA (the image and how it is used), not about whether the user's claim is correct. If the user asks "is this real?" or similar, answer: is the image authentic and free of manipulation? If the image is doctored, altered, misattributed, or otherwise manipulated, return FALSE. The explanation must focus on the manipulation or misinformation in the submitted media. Do NOT return TRUE just because the user's description of the manipulation is accurate; return FALSE because the media itself is not real or is misleading.
 
 User Claim: ${userClaim}
 
 Image History:
 ${imageHistoryText}
+
+Compare the User Claim vs. the Image History. Determine if the image's context has been hijacked (e.g. misattributed event, wrong place/time, misleading caption, or doctored image).
 
 Build a timeline that tells the image's story. Use as many nodes as the story needs (not a fixed number):
 - Simple case: 2 nodes (earliest/first use, current use).
@@ -259,10 +301,10 @@ Build a timeline that tells the image's story. Use as many nodes as the story ne
 - More nodes if there are other distinct moments (e.g. first viral use, then alteration, then current).
 When page links are listed above, use a "link" URL from that list for each node; when no pages were found, use "" for link.
 For each timeline node, use the "date" from the matching page line above when that node corresponds to a listed result. Always include the year in every date (e.g. "Jan 15, 2024" or "2024-01-15").
-Verdict: TRUE (context accurate) | FALSE (disinformation/wrong) | UNVERIFIED (cannot determine).
-Score 0-100: higher = more FALSE.
+Verdict: TRUE = image is authentic and context is accurate (no manipulation). FALSE = image is doctored, manipulated, or misleading. UNVERIFIED = cannot determine.
+Score 0-100: reflects (1) the degree of manipulation or misuse of the media, and (2) your confidence in that assessment. Higher = more manipulated/misleading and/or higher confidence in FALSE; lower = more authentic and/or higher confidence in TRUE.
 
-Return ONLY valid JSON with no markdown, no code fences. Use this exact structure:
+In the explanation string you may use ** for bold on important terms. For links, use [display text](url) only for Wikipedia (or similar reference) pages for people and institutions—do not link to news articles or sources that already appear in the timeline or Relevant sources. Escape any quotes inside the string. Return ONLY valid JSON with no code fences. Use this exact structure:
 {"verdict":"string","score":number 0-100,"explanation":"string","timeline":[{"label":"string","date":"string","description":"string","link":"string"}]}`;
 
     const bedrockBody = {
@@ -345,5 +387,13 @@ Return ONLY valid JSON with no markdown, no code fences. Use this exact structur
       { error: message },
       { status: 500 }
     );
+  } finally {
+    if (uploadedBlobUrl) {
+      try {
+        await del(uploadedBlobUrl);
+      } catch {
+        // best-effort cleanup
+      }
+    }
   }
 }

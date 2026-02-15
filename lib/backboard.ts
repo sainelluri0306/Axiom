@@ -19,7 +19,7 @@ export async function getBackboardSecondOpinion(
 ): Promise<BackboardVerdict | null> {
   if (!apiKey?.trim()) return null;
 
-  const prompt = `You are a fact-checking analyst. Based on the claim and evidence below, give a verdict.
+  const prompt = `You are a dispassionate fact-checking analyst. Your goal is not to balance opinions, but to verify the chronological origin of the media. Prioritize primary source dates over commentary. Use precise, clinical language. Avoid emotive adjectives. Based on the claim and evidence below, give a verdict.
 
 Claim: "${claim}"
 

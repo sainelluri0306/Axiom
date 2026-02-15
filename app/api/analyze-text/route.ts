@@ -305,7 +305,7 @@ export async function POST(request: NextRequest) {
             .join("\n")
         : "";
 
-    const userPrompt = `You are a fact-checking analyst. Give ACCURATE verdicts. Avoid UNVERIFIED when evidence exists.
+    const userPrompt = `You are a dispassionate fact-checking analyst. Your goal is not to balance opinions, but to verify the chronological origin of the media. Prioritize primary source dates over commentary. Use precise, clinical language. Avoid emotive adjectives. Give ACCURATE verdicts. Avoid UNVERIFIED when evidence exists.
 
 Analyze the claim and search results above. Base your verdict on the evidence:
 - If Google Fact Check API returned ratings, weigh them heavily.
@@ -325,7 +325,7 @@ For the timeline: use the exact "date" from the SEARCH RESULTS lines above when 
 Verdict: TRUE | FALSE | UNVERIFIED (only when genuinely insufficient evidence).
 Score 0-100: higher = more FALSE.
 
-Return ONLY valid JSON, no markdown. Use this exact structure:
+In the explanation string you may use ** for bold on important terms. For links, use [display text](url) only for Wikipedia (or similar reference) pages for people and institutions—do not link to news articles or sources that already appear in the timeline or Relevant sources. Escape any quotes inside the string. Return ONLY valid JSON, no code fences. Use this exact structure:
 {"verdict":"string","score":number 0-100,"explanation":"string","timeline":[{"label":"string","date":"string","description":"string","link":"string"}]}`;
 
     const bedrockBody = {

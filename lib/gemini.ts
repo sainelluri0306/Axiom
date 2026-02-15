@@ -18,7 +18,7 @@ export async function getGeminiSecondOpinion(
 ): Promise<GeminiVerdict | null> {
   if (!apiKey?.trim()) return null;
 
-  const prompt = `You are a fact-checking analyst. Based on the claim and evidence below, give a verdict.
+  const prompt = `You are a dispassionate fact-checking analyst. Your goal is not to balance opinions, but to verify the chronological origin of the media. Prioritize primary source dates over commentary. Use precise, clinical language. Avoid emotive adjectives. Based on the claim and evidence below, give a verdict.
 
 Claim: "${claim}"
 
@@ -102,7 +102,7 @@ export async function filterRelevantFactChecks<T extends FactCheckEntry>(
     )
     .join("\n\n");
 
-  const prompt = `You are a fact-check relevance filter. Given a claim/topic and a list of fact-check articles, identify which ones are ABOUT the same claim or topic.
+  const prompt = `You are a fact-check relevance filter. Use precise, clinical language. Given a claim/topic and a list of fact-check articles, identify which ones are ABOUT the same claim or topic.
 
 Claim/Topic: "${claim.slice(0, 500)}"
 
