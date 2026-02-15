@@ -225,7 +225,8 @@ div[class*="grid"][class*="grid-cols"] {
   margin: 0.5rem 0;
 }
 
-div[class*="grid"][class*="grid-cols"]:hover {
+/* Only timeline row grids get hover background; not the main dashboard */
+div[class*="grid"][class*="grid-cols"]:not(.results-dashboard):hover {
   background: rgba(255, 255, 255, 0.02);
   transform: none;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -405,6 +406,10 @@ div[class*="rounded-xl"][class*="border"] a {
 div[class*="rounded-xl"][class*="border"] a:hover {
   color: rgba(255, 255, 255, 0.9) !important;
   transform: translateX(2px);
+}
+
+.relevant-sources a:hover {
+  transform: none;
 }
 
 div[class*="rounded-xl"][class*="border"] a::after {
