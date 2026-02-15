@@ -413,8 +413,8 @@ export default function Home() {
       verdict.toUpperCase().includes("INSUFFICIENT") ||
       verdict.toUpperCase().includes("INVALID");
     const displayPct = isTrueVerdict ? 100 - score : score;
-    const scoreLabel = isTrueVerdict ? "Accuracy" : "False / misleading";
-    return { isTrueVerdict, isUnverifiable, displayPct, scoreLabel };
+    const scoreInterpretation = isTrueVerdict ? "accurate" : "false / misleading";
+    return { isTrueVerdict, isUnverifiable, displayPct, scoreInterpretation };
   }
 
   return (
@@ -768,6 +768,7 @@ export default function Home() {
                             <ul className="min-w-0 w-full space-y-2 overflow-hidden">
                               {otherSources.slice(0, 10).map((p, i) => {
                                 const domain = getDomain(p.link);
+                                const faviconUrl = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`;
                                 return (
                                   <li key={i} className="min-w-0 w-full overflow-hidden">
                                     <a
@@ -777,15 +778,15 @@ export default function Home() {
                                       className="flex w-full min-w-0 items-center gap-3 overflow-hidden rounded-full bg-white/[0.06] px-4 py-2.5 text-left transition-colors hover:bg-white/[0.1]"
                                     >
                                       <img
-                                        src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`}
+                                        src={faviconUrl}
                                         alt=""
-                                        className="h-5 w-5 shrink-0 rounded-full object-cover"
+                                        className="h-4 w-4 shrink-0 rounded-sm object-contain"
                                         aria-hidden
                                       />
-                                      <span className="shrink-0 text-xs text-zinc-400">
+                                      <span className="shrink-0 text-xs text-zinc-500">
                                         {domain}
                                       </span>
-                                      <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-zinc-200" title={p.title || undefined}>
+                                      <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-zinc-400" title={p.title || undefined}>
                                         {p.title || "Untitled"}
                                       </span>
                                     </a>
@@ -799,7 +800,7 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {/* Right 1/3: Score | About this image | Fact-check sites */}
+                      {/* Right 1/3: Score | About this image | Cross-examination */}
                       <div className="flex flex-col gap-6">
                         <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
                           <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-2">
@@ -808,10 +809,10 @@ export default function Home() {
                           {stats.isUnverifiable ? (
                             <p className="text-2xl font-display text-zinc-500">—</p>
                           ) : (
-                            <>
-                              <p className="text-4xl sm:text-5xl font-display font-black text-white tracking-tight">{stats.displayPct}%</p>
-                              <p className="text-xs text-zinc-500 mt-1">{stats.scoreLabel}</p>
-                            </>
+                            <p className="font-display tracking-tight leading-tight">
+                              <span className="text-4xl sm:text-5xl font-black text-white">{stats.displayPct}%</span>
+                              <span className="ml-1.5 text-s text-zinc-500">{stats.scoreInterpretation}</span>
+                            </p>
                           )}
                         </div>
 
@@ -856,7 +857,7 @@ export default function Home() {
 
                         <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
                           <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-3">
-                            Fact-check sites
+                            Cross-examination
                           </span>
                           {factCheckSources.length > 0 ? (
                             <ul className="space-y-3">
@@ -898,6 +899,9 @@ export default function Home() {
                     </div>
                   );
                 })}
+            <p className="mx-auto mt-12 max-w-5xl text-center text-xs text-zinc-500 leading-relaxed shadow-[0_4px_14px_rgba(0,0,0,0.25)]">
+              This analysis was generated with the help of AI. AI can make mistakes. Consider checking important information against primary sources.
+            </p>
             </section>
           )}
         </main>

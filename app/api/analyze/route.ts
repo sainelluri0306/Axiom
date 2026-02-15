@@ -259,7 +259,7 @@ Build a timeline that tells the image's story. Use as many nodes as the story ne
 - More nodes if there are other distinct moments (e.g. first viral use, then alteration, then current).
 When page links are listed above, use a "link" URL from that list for each node; when no pages were found, use "" for link.
 For each timeline node, use the "date" from the matching page line above when that node corresponds to a listed result. Always include the year in every date (e.g. "Jan 15, 2024" or "2024-01-15").
-Verdict: TRUE (context accurate) | FALSE (context hijacked/wrong) | UNVERIFIED (cannot determine).
+Verdict: TRUE (context accurate) | FALSE (disinformation/wrong) | UNVERIFIED (cannot determine).
 Score 0-100: higher = more FALSE.
 
 Return ONLY valid JSON with no markdown, no code fences. Use this exact structure:
