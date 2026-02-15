@@ -123,3 +123,321 @@ select {
   border: 1px solid rgba(255, 255, 255, 0.06);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
+
+/* Premium Timeline Styles — Best UI Ever */
+/* Target timeline container - using more flexible selectors */
+div[class*="rounded-xl"][class*="border"][class*="bg-white"] {
+  position: relative;
+}
+
+/* Enhanced timeline line with gradient - drawn from timeline-container */
+/* Line positioned at calc(5.5rem + 1rem + 12px + 22px) = center of 24px marker column + 22px offset */
+.timeline-container::after {
+  content: "";
+  position: absolute;
+  top: 1.5rem;
+  bottom: 1.5rem;
+  left: calc(5.5rem + 1rem + 12px + 22px);
+  transform: translateX(-50%);
+  width: 2px;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.1),
+    rgba(255, 255, 255, 0.2),
+    rgba(255, 255, 255, 0.15),
+    rgba(255, 255, 255, 0.1)
+  );
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.1);
+  z-index: 1;
+}
+
+/* Bold line up to current point - drawn from timeline-container, same position as regular line */
+.timeline-container::before {
+  content: "";
+  position: absolute;
+  top: 1.5rem;
+  bottom: 1.5rem;
+  left: calc(5.5rem + 1rem + 12px + 22px);
+  transform: translateX(-50%);
+  width: 4px;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.3),
+    rgba(255, 255, 255, 0.5),
+    rgba(255, 255, 255, 0.7),
+    rgba(255, 255, 255, 0.8),
+    rgba(255, 255, 255, 0.9)
+  );
+  border-radius: 2px;
+  box-shadow: 
+    0 0 12px rgba(255, 255, 255, 0.2),
+    0 0 8px rgba(255, 255, 255, 0.4),
+    0 0 16px rgba(255, 255, 255, 0.3);
+  z-index: 2;
+  overflow: hidden;
+  animation: timelineDraw 1.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  transform-origin: top center;
+}
+
+/* Keep the original timeline-line classes hidden as fallback */
+.timeline-line,
+.timeline-line-bold {
+  display: none;
+}
+
+/* Animation: line draws from top to bottom */
+@keyframes timelineDraw {
+  0% {
+    transform: translateX(-50%) scaleY(0);
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateX(-50%) scaleY(1);
+    opacity: 1;
+  }
+}
+
+/* Timeline node container with hover effects - target grid with specific column pattern */
+div[class*="grid"][class*="grid-cols"] {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 0.5rem;
+  padding: 1rem !important;
+  margin: 0.5rem 0;
+}
+
+div[class*="grid"][class*="grid-cols"]:hover {
+  background: rgba(255, 255, 255, 0.02);
+  transform: translateX(4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Premium date box - target rounded-md with white background */
+div[class*="rounded-md"][class*="bg-white"] {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.95)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transition: all 0.3s ease;
+  font-weight: 600 !important;
+  letter-spacing: 0.05em;
+}
+
+div[class*="grid"][class*="grid-cols"]:hover div[class*="rounded-md"][class*="bg-white"] {
+  transform: scale(1.05);
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* Position marker container - the middle column should align with the line */
+/* This container is 24px wide, positioned after the date column (5.5rem) and gap (1rem) */
+div[class*="grid"][class*="grid-cols"] > div[class*="relative"][class*="flex"][class*="justify-center"] {
+  position: relative;
+  width: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 0.375rem;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+
+/* Center the marker on the timeline line */
+/* Marker is centered within its 24px container column - center is at 12px from container left */
+.timeline-marker {
+  position: absolute;
+  left: 12px;
+  transform: translateX(-50%);
+  z-index: 10;
+  margin-top: 0;
+  top: 0.375rem;
+}
+
+/* Enhanced timeline marker dots - positioned on the line */
+div[class*="rounded-full"][class*="border"] {
+  width: 14px !important;
+  height: 14px !important;
+  border: 3px solid rgba(255, 255, 255, 0.6) !important;
+  background: #050506 !important;
+  box-shadow: 
+    0 0 0 4px rgba(5, 5, 6, 0.9),
+    0 0 0 6px rgba(255, 255, 255, 0.1),
+    0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: none !important;
+  position: relative;
+  transform: none !important;
+}
+
+div[class*="grid"][class*="grid-cols"]:hover div[class*="rounded-full"][class*="border"] {
+  transform: none !important;
+  border-color: rgba(255, 255, 255, 0.9) !important;
+  box-shadow: 
+    0 0 0 4px rgba(5, 5, 6, 0.9),
+    0 0 0 6px rgba(255, 255, 255, 0.2),
+    0 0 20px rgba(255, 255, 255, 0.15),
+    0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* First node special styling - grey dot */
+div[class*="grid"][class*="grid-cols"]:first-child div[class*="rounded-full"][class*="border"] {
+  background: linear-gradient(135deg, rgba(161, 161, 170, 0.3), rgba(161, 161, 170, 0.2)) !important;
+  border-color: rgba(161, 161, 170, 0.6) !important;
+}
+
+/* Last node special styling - current time with solid white dot */
+div[class*="grid"][class*="grid-cols"]:last-child div[class*="rounded-full"][class*="border"] {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(255, 255, 255, 1) !important;
+  position: relative;
+  box-shadow: 
+    0 0 0 4px rgba(5, 5, 6, 0.95),
+    0 0 0 6px rgba(255, 255, 255, 0.4),
+    0 0 20px rgba(255, 255, 255, 0.6),
+    0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  animation: currentDotPulse 2s ease-in-out infinite;
+  z-index: 10;
+  transform: none !important;
+}
+
+/* Move last node dot slightly to the left */
+div[class*="grid"][class*="grid-cols"]:last-child .timeline-marker {
+  left: calc(12px - 5px);
+}
+
+@keyframes currentDotPulse {
+  0%, 100% {
+    box-shadow: 
+      0 0 0 4px rgba(5, 5, 6, 0.95),
+      0 0 0 6px rgba(255, 255, 255, 0.4),
+      0 0 20px rgba(255, 255, 255, 0.6),
+      0 2px 8px rgba(0, 0, 0, 0.3);
+    transform: none;
+  }
+  50% {
+    box-shadow: 
+      0 0 0 4px rgba(5, 5, 6, 0.95),
+      0 0 0 10px rgba(255, 255, 255, 0.6),
+      0 0 30px rgba(255, 255, 255, 0.8),
+      0 2px 8px rgba(0, 0, 0, 0.3);
+    transform: none;
+  }
+}
+
+/* Current time pointer - play icon positioned to the right of the circle */
+.timeline-pointer {
+  position: absolute;
+  left: calc(12px + 7px + 4px);
+  top: 0.375rem;
+  transform: translateY(-50%);
+  z-index: 20;
+  color: rgba(255, 255, 255, 0.9);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+  animation: timelinePulse 2s ease-in-out infinite;
+}
+
+.timeline-pointer svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+
+/* Premium content styling - target by class patterns */
+div[class*="min-w-0"][class*="pl-"] {
+  padding-left: 1rem !important;
+}
+
+/* Timeline labels */
+p[class*="text-xs"][class*="uppercase"] {
+  font-weight: 700 !important;
+  letter-spacing: 0.1em !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  margin-bottom: 0.75rem !important;
+  font-size: 0.6875rem !important;
+}
+
+/* Timeline context/description */
+p[class*="text-sm"][class*="font-medium"] {
+  font-weight: 600 !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+  font-size: 0.9375rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+p[class*="text-sm"][class*="text-zinc-400"] {
+  color: rgba(212, 212, 216, 0.9) !important;
+  line-height: 1.7 !important;
+  font-size: 0.875rem !important;
+}
+
+/* Enhanced links in timeline */
+div[class*="rounded-xl"][class*="border"] a {
+  transition: all 0.2s ease;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+div[class*="rounded-xl"][class*="border"] a:hover {
+  color: rgba(255, 255, 255, 0.9) !important;
+  transform: translateX(2px);
+}
+
+div[class*="rounded-xl"][class*="border"] a::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.5);
+  transition: width 0.3s ease;
+}
+
+div[class*="rounded-xl"][class*="border"] a:hover::after {
+  width: 100%;
+}
+
+/* Timeline header */
+div[class*="rounded-xl"][class*="border"] > span[class*="text-xs"] {
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.15em !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+  margin-bottom: 2rem !important;
+  display: block;
+  text-transform: uppercase;
+}
+
+/* Smooth animations */
+@keyframes timelinePulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+div[class*="grid"][class*="grid-cols"]:first-child div[class*="rounded-full"][class*="border"]::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid rgba(34, 197, 94, 0.3);
+  animation: timelinePulse 2s ease-in-out infinite;
+}
+
+div[class*="grid"][class*="grid-cols"]:last-child div[class*="rounded-full"][class*="border"]::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid rgba(59, 130, 246, 0.3);
+  animation: timelinePulse 2s ease-in-out infinite;
+}

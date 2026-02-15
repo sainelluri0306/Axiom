@@ -152,6 +152,159 @@ export default function TestPage() {
           </div>
         )}
 
+        {/* Timeline — Always visible, shows placeholder when no data */}
+        <div className="mt-8 rounded-xl border border-white/10 bg-white/[0.03] p-6">
+          <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-6 font-bold">
+            Timeline — Image Story
+          </span>
+          <div className="relative flex flex-col pl-0 timeline-container">
+            {/* Timeline lines are now drawn via CSS pseudo-elements on marker columns */}
+            {/* Regular line is ::after on first marker column, bold line is ::before */}
+            {rawResponse?.ok && rawResponse.body?.timeline && rawResponse.body.timeline.length > 0 ? (
+              (() => {
+                const nodes = rawResponse.body.timeline!;
+                const explanation = rawResponse.body.explanation ?? "";
+                const pageResults = rawResponse.body.aboutThisImage?.pageResults ?? [];
+                const xLink = pageResults.find((p) => {
+                  try {
+                    const host = new URL(p.link).hostname.toLowerCase();
+                    return host === "x.com" || host === "twitter.com";
+                  } catch {
+                    return false;
+                  }
+                });
+                return nodes.map((node, i) => (
+                  <div
+                    key={i}
+                    className="grid grid-cols-[5.5rem_24px_1fr] gap-4 items-start py-4 first:pt-0 last:pb-0"
+                  >
+                    <div className="rounded-md bg-white/95 px-2 py-1.5 text-center shrink-0 min-w-0">
+                      <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-800 whitespace-nowrap block">
+                        {node.date}
+                      </span>
+                    </div>
+                    <div className="relative flex justify-center pt-1.5 shrink-0">
+                      <div
+                        className="relative z-10 h-3 w-3 shrink-0 rounded-full border-2 border-zinc-500 bg-noir-bg timeline-marker"
+                        aria-hidden
+                      />
+                      {i === nodes.length - 1 && (
+                        <div className="absolute left-full ml-1 top-1/2 -translate-y-1/2 z-20 timeline-pointer" aria-hidden>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" className="text-white">
+                            <path d="M8 5v14l11-7z" fill="currentColor" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 pl-2">
+                      <p className="text-xs uppercase tracking-wider text-zinc-500 mb-0.5">
+                        {node.label}
+                      </p>
+                      {i === 0 ? (
+                        <>
+                          <p className="text-sm font-medium text-zinc-300 mb-1">
+                            Context
+                          </p>
+                          <p className="text-sm text-zinc-400 leading-relaxed mb-2">
+                            {node.description || explanation || "Context not available from this source."}
+                          </p>
+                          <div className="text-xs text-zinc-500">
+                            {xLink && (
+                              <div className="mb-1">
+                                <a
+                                  href={xLink.link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="hover:text-zinc-400 transition-colors block"
+                                >
+                                  Original post on X ↗
+                                </a>
+                              </div>
+                            )}
+                            <div className="mb-2">
+                              <a
+                                href={node.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:text-zinc-400 transition-colors block"
+                              >
+                                Source: {getDomain(node.link)}
+                              </a>
+                            </div>
+                            <p className="text-xs text-zinc-500 mt-2 italic">
+                              First appearance we found in our index. The image may have an earlier origin (e.g. original tweet or post).
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm text-zinc-400 leading-relaxed mb-2">
+                            {node.description}
+                          </p>
+                          <a
+                            href={node.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-zinc-500 hover:text-zinc-400 transition-colors block"
+                          >
+                            Source: {getDomain(node.link)}
+                          </a>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ));
+              })()
+            ) : (
+              /* Placeholder timeline */
+              <>
+                <div className="grid grid-cols-[5.5rem_24px_1fr] gap-4 items-start py-4 opacity-50">
+                  <div className="rounded-md bg-white/95 px-2 py-1.5 text-center shrink-0 min-w-0">
+                    <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-800 whitespace-nowrap block">
+                      —
+                    </span>
+                  </div>
+                  <div className="relative flex justify-center pt-1.5 shrink-0">
+                    <div
+                      className="relative z-10 h-3 w-3 shrink-0 rounded-full border-2 border-zinc-500 bg-noir-bg timeline-marker"
+                      aria-hidden
+                    />
+                  </div>
+                  <div className="min-w-0 pl-2">
+                    <p className="text-xs uppercase tracking-wider text-zinc-500 mb-0.5">
+                      First Appearance
+                    </p>
+                    <p className="text-sm text-zinc-400 leading-relaxed">
+                      Submit an investigation to see the timeline
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-[5.5rem_24px_1fr] gap-4 items-start py-4 opacity-50">
+                  <div className="rounded-md bg-white/95 px-2 py-1.5 text-center shrink-0 min-w-0">
+                    <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-800 whitespace-nowrap block">
+                      —
+                    </span>
+                  </div>
+                  <div className="relative flex justify-center pt-1.5 shrink-0">
+                    <div
+                      className="relative z-10 h-3 w-3 shrink-0 rounded-full border-2 border-zinc-500 bg-noir-bg timeline-marker"
+                      aria-hidden
+                    />
+                  </div>
+                  <div className="min-w-0 pl-2">
+                    <p className="text-xs uppercase tracking-wider text-zinc-500 mb-0.5">
+                      Current Version
+                    </p>
+                    <p className="text-sm text-zinc-400 leading-relaxed">
+                      Timeline will appear here after analysis
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
         {rawResponse !== null && rawResponse.ok && rawResponse.body?.aboutThisImage && (
           <div className="space-y-4">
             <h2 className="text-sm font-medium text-zinc-400">Bento — About this image</h2>
@@ -214,101 +367,6 @@ export default function TestPage() {
                 )}
               </div>
             </div>
-            {/* Vertical timeline: variable nodes from Claude (e.g. original → doctored → current) */}
-            {rawResponse.body.timeline && rawResponse.body.timeline.length > 0 && (() => {
-              const nodes = rawResponse.body.timeline!;
-              const explanation = rawResponse.body.explanation ?? "";
-              const pageResults = rawResponse.body.aboutThisImage?.pageResults ?? [];
-              const xLink = pageResults.find((p) => {
-                try {
-                  const host = new URL(p.link).hostname.toLowerCase();
-                  return host === "x.com" || host === "twitter.com";
-                } catch {
-                  return false;
-                }
-              });
-              return (
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                  <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-4">
-                    Timeline — image story
-                  </span>
-                  <div className="relative flex flex-col pl-0">
-                    <div
-                      className="absolute left-[calc(5.5rem+1rem+12px)] top-6 bottom-6 w-px bg-zinc-600"
-                      aria-hidden
-                    />
-                    {nodes.map((node, i) => (
-                      <div
-                        key={i}
-                        className="grid grid-cols-[5.5rem_24px_1fr] gap-4 items-start py-4 first:pt-0 last:pb-0"
-                      >
-                        <div className="rounded-md bg-white/95 px-2 py-1.5 text-center shrink-0 min-w-0">
-                          <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-800 whitespace-nowrap block">
-                            {node.date}
-                          </span>
-                        </div>
-                        <div className="relative flex justify-center pt-1.5 shrink-0">
-                          <div
-                            className="relative z-10 h-3 w-3 shrink-0 rounded-full border-2 border-zinc-500 bg-noir-bg"
-                            aria-hidden
-                          />
-                        </div>
-                        <div className="min-w-0 pl-2">
-                          <p className="text-xs uppercase tracking-wider text-zinc-500 mb-0.5">
-                            {node.label}
-                          </p>
-                          {i === 0 ? (
-                            <>
-                              <p className="text-sm font-medium text-zinc-300 mb-1">
-                                Context
-                              </p>
-                              <p className="text-sm text-zinc-400 leading-relaxed mb-2">
-                                {node.description || explanation || "Context not available from this source."}
-                              </p>
-                              {xLink && (
-                                <a
-                                  href={xLink.link}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-zinc-400 hover:text-zinc-300 transition-colors mb-1 inline-block"
-                                >
-                                  Original post on X ↗
-                                </a>
-                              )}
-                              <a
-                                href={node.link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-zinc-500 hover:text-zinc-400 transition-colors block"
-                              >
-                                Source: {getDomain(node.link)}
-                              </a>
-                              <p className="text-xs text-zinc-500 mt-2 italic">
-                                First appearance we found in our index. The image may have an earlier origin (e.g. original tweet or post).
-                              </p>
-                            </>
-                          ) : (
-                            <a
-                              href={node.link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="block hover:opacity-90 transition-opacity"
-                            >
-                              <p className="text-sm text-zinc-400 leading-relaxed">
-                                {node.description}
-                              </p>
-                              <span className="text-xs text-zinc-500 mt-1 block">
-                                Source: {getDomain(node.link)}
-                              </span>
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
           </div>
         )}
 
