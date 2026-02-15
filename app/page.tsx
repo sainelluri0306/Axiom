@@ -559,7 +559,7 @@ export default function Home() {
 
                       {result.scrapedContent &&
                         (result.scrapedContent.title || result.scrapedContent.description) && (
-                          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                          <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4">
                             <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-2">
                               From URL
                             </span>
@@ -576,7 +576,7 @@ export default function Home() {
                           </div>
                         )}
 
-                      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 flex flex-col gap-2">
+                      <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4 flex flex-col gap-2">
                         <span className="text-xs uppercase tracking-wider text-zinc-500">Verdict</span>
                         <p className="text-zinc-100 font-medium">{result.verdict}</p>
                         {stats.isUnverifiable ? (
@@ -596,7 +596,7 @@ export default function Home() {
                         )}
                       </div>
 
-                      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6">
+                      <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-6">
                         <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-6 font-bold">
                           Timeline — findings
                         </span>
@@ -688,7 +688,7 @@ export default function Home() {
                       </div>
 
                       {result.aboutThisImage?.headerImage && (
-                        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                        <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4">
                           <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-2">
                             About this image
                           </span>
@@ -706,7 +706,7 @@ export default function Home() {
                       )}
 
                       {result.pageResults && result.pageResults.length > 0 && (
-                        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                        <div className="rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-xl p-4">
                           <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-3">
                             Sources (Web, News, PolitiFact, Snopes)
                           </span>
