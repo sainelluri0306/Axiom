@@ -362,18 +362,16 @@ export default function Home() {
                     <p className="mt-2 text-3xl font-display text-white">Fake Score: {result.score}%</p>
                     <p className="mt-2 text-sm text-zinc-400">{result.explanation}</p>
                     {result.timeline && result.timeline.length > 0 && (
-                      <div className="mt-4">
-                        <h4 className="text-sm text-zinc-500 uppercase tracking-wider">Timeline</h4>
-                        <ul className="mt-2 space-y-2">
-                          {result.timeline.map((t, i) => (
-                            <li key={i} className="text-sm text-zinc-300">
-                              <span className="text-zinc-500">{t.date}</span> — <span className="font-medium text-zinc-200">{t.label}</span>: {t.description}
-                              {t.link && (
-                                <a href={t.link} target="_blank" rel="noopener noreferrer" className="ml-1 text-zinc-500 hover:text-zinc-400">↗</a>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
+                      <div className="mt-4 pt-4 border-t border-white/10">
+                        <Link
+                          href="/test"
+                          className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-300 transition-colors"
+                        >
+                          <span>View detailed timeline</span>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </Link>
                       </div>
                     )}
                   </div>
