@@ -846,22 +846,34 @@ export default function Home() {
                             Fact-check sites
                           </span>
                           {factCheckSources.length > 0 ? (
-                            <ul className="space-y-2">
-                              {factCheckSources.map((p, i) => (
-                                <li key={i} className="text-sm">
-                                  <a
-                                    href={p.link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-zinc-300 hover:text-white transition-colors"
-                                  >
-                                    {p.title}
-                                  </a>
-                                  {p.source && (
-                                    <span className="text-zinc-500 text-xs block mt-0.5">{p.source}</span>
-                                  )}
-                                </li>
-                              ))}
+                            <ul className="space-y-3">
+                              {factCheckSources.map((p, i) => {
+                                const domain = getDomain(p.link);
+                                const faviconUrl = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`;
+                                return (
+                                  <li key={i} className="flex items-start gap-2.5 text-sm">
+                                    <img
+                                      src={faviconUrl}
+                                      alt=""
+                                      className="mt-0.5 h-4 w-4 shrink-0 rounded-sm object-contain"
+                                      aria-hidden
+                                    />
+                                    <div className="min-w-0 flex-1">
+                                      <a
+                                        href={p.link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-zinc-300 hover:text-white transition-colors block"
+                                      >
+                                        {p.title}
+                                      </a>
+                                      {p.source && (
+                                        <span className="text-zinc-500 text-xs block mt-0.5">{p.source}</span>
+                                      )}
+                                    </div>
+                                  </li>
+                                );
+                              })}
                             </ul>
                           ) : (
                             <p className="text-sm text-zinc-500">
