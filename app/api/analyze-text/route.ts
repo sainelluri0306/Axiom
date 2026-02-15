@@ -3,7 +3,18 @@ import axios from "axios";
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 
 const SERPAPI_BASE = "https://serpapi.com/search.json";
+const FACT_CHECK_API = "https://factchecktools.googleapis.com/v1alpha1/claims:search";
 const BEDROCK_MODEL_ID = "global.anthropic.claude-sonnet-4-20250514-v1:0";
+
+export type FactCheckResult = {
+  claim: string;
+  claimant?: string;
+  claimDate?: string;
+  rating: string;
+  publisher: string;
+  url: string;
+  title?: string;
+};
 
 export type AnalyzeTextBody = {
   claim: string;
@@ -100,6 +111,50 @@ async function runSerpNewsSearch(apiKey: string, query: string): Promise<SerpNew
   }
 }
 
+/** Google Fact Check Tools API — returns structured verdicts from PolitiFact, Snopes, etc. */
+async function fetchFactChecks(
+  apiKey: string,
+  query: string
+): Promise<FactCheckResult[]> {
+  try {
+    const res = await axios.get<{
+      claims?: Array<{
+        text?: string;
+        claimant?: string;
+        claimDate?: string;
+        claimReview?: Array<{
+          publisher?: { name?: string; site?: string };
+          url?: string;
+          title?: string;
+          textualRating?: string;
+        }>;
+      }>;
+    }>(`${FACT_CHECK_API}`, {
+      params: { key: apiKey, query },
+      timeout: 15000,
+    });
+    const results: FactCheckResult[] = [];
+    for (const c of res.data?.claims ?? []) {
+      for (const r of c.claimReview ?? []) {
+        if (r.url && r.textualRating) {
+          results.push({
+            claim: c.text ?? "",
+            claimant: c.claimant,
+            claimDate: c.claimDate,
+            rating: r.textualRating,
+            publisher: r.publisher?.name ?? "Unknown",
+            url: r.url,
+            title: r.title,
+          });
+        }
+      }
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
+
 function toPageResult(r: SerpOrganicResult | SerpNewsResult, source: string): PageResultItem {
   return {
     title: typeof r.title === "string" ? r.title : "Untitled",
@@ -108,6 +163,28 @@ function toPageResult(r: SerpOrganicResult | SerpNewsResult, source: string): Pa
     date: typeof r.date === "string" ? r.date : "N/A",
     source,
   };
+}
+
+/** Extract verdict from fact-check result snippets (PolitiFact, Snopes, etc.). */
+function verdictFromSnippets(
+  results: PageResultItem[],
+  factCheckSources: string[]
+): { verdict: string; score: number } | null {
+  const combined = results
+    .filter((p) => factCheckSources.includes(p.source))
+    .map((p) => `${p.title} ${p.snippet ?? ""}`)
+    .join(" ")
+    .toLowerCase();
+  if (!combined) return null;
+  const falseMatch = /(?:rated?|rate|rates)\s+(?:as\s+)?(?:false|pants\s*[- ]?on\s*fire|pants\s*on\s*fire|full\s*flop)|(?:false|pants\s*on\s*fire|debunked|fake|hoax|misleading)/.test(combined) ||
+    /\b(?:false|debunked|misleading|incorrect)\b.*(?:politifact|snopes|factcheck)/.test(combined);
+  const trueMatch = /(?:rated?|rate|rates)\s+(?:as\s+)?(?:true|mostly\s*true|promise\s*kept)|(?:true|mostly\s*true|correct|accurate)/.test(combined) ||
+    /\b(?:true|mostly\s*true|correct)\b.*(?:politifact|snopes|factcheck)/.test(combined);
+  const mixedMatch = /(?:half\s*true|mixed|partly\s*true|partly\s*false)/.test(combined);
+  if (falseMatch && !trueMatch) return { verdict: "FALSE", score: 88 };
+  if (trueMatch && !falseMatch) return { verdict: "TRUE", score: 15 };
+  if (mixedMatch && !falseMatch && !trueMatch) return { verdict: "MOSTLY FALSE", score: 65 };
+  return null;
 }
 
 export async function POST(request: NextRequest) {
@@ -130,20 +207,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // —— Step A: Search web + news + Politifact + Snopes ——
-    // General web (with recency) + Google News for latest coverage + fact-check sites
-    const [generalRes, newsRes, politifactRes, snopesRes] = await Promise.all([
-      runSerpSearch(apiKey, claim, { as_qdr: "d2" }), // past 48 hours for recent content (SerpAPI param)
-      runSerpNewsSearch(apiKey, claim),
-      runSerpSearch(apiKey, `site:politifact.com ${claim}`),
-      runSerpSearch(apiKey, `site:snopes.com ${claim}`),
-    ]);
+    // —— Step A: Search web + news + fact-check sites ——
+    // General web (1yr) + News + fact-check sites — no date limit on fact-checkers (older debunks matter)
+    const factCheckKey = process.env.GOOGLE_FACT_CHECK_API_KEY?.trim();
+    const shortClaim = claim.length > 80 ? claim.slice(0, 80) : claim;
+    const [factCheckRes1, factCheckRes2, generalRes, newsRes, factCheckSearchRes, politifactRes, snopesRes, factcheckOrgRes] =
+      await Promise.all([
+        factCheckKey ? fetchFactChecks(factCheckKey, claim) : Promise.resolve([] as FactCheckResult[]),
+        factCheckKey && claim !== shortClaim ? fetchFactChecks(factCheckKey, shortClaim) : Promise.resolve([] as FactCheckResult[]),
+        runSerpSearch(apiKey, claim, { as_qdr: "y1" }), // 1 year — many fact-checks are months old
+        runSerpNewsSearch(apiKey, claim),
+        runSerpSearch(apiKey, `${claim} fact check`),
+        runSerpSearch(apiKey, `site:politifact.com ${claim}`),
+        runSerpSearch(apiKey, `site:snopes.com ${claim}`),
+        runSerpSearch(apiKey, `site:factcheck.org ${claim}`),
+      ]);
+
+    const factCheckRes = [...factCheckRes1];
+    for (const f of factCheckRes2) {
+      if (!factCheckRes.some((e) => e.url === f.url)) factCheckRes.push(f);
+    }
 
     const pageResults: PageResultItem[] = [
-      ...generalRes.slice(0, 15).map((r) => toPageResult(r, "Web")),
-      ...newsRes.slice(0, 15).map((r) => toPageResult(r, "News")),
+      ...generalRes.slice(0, 12).map((r) => toPageResult(r, "Web")),
+      ...newsRes.slice(0, 12).map((r) => toPageResult(r, "News")),
+      ...factCheckSearchRes.slice(0, 10).map((r) => toPageResult(r, "FactCheck")),
       ...politifactRes.slice(0, 10).map((r) => toPageResult(r, "PolitiFact")),
       ...snopesRes.slice(0, 10).map((r) => toPageResult(r, "Snopes")),
+      ...factcheckOrgRes.slice(0, 8).map((r) => toPageResult(r, "FactCheck.org")),
     ];
 
     // Dedupe by link
@@ -179,36 +270,40 @@ export async function POST(request: NextRequest) {
       )
       .join("\n");
 
-    const userPrompt = `You are a fact-checking analyst. Analyze ONLY what the user actually claimed.
+    const factCheckContext =
+      factCheckRes.length > 0
+        ? `\n\nGOOGLE FACT CHECK API (authoritative — USE THESE VERDICTS):\n` +
+          factCheckRes
+            .slice(0, 10)
+            .map(
+              (f) =>
+                `- Publisher: ${f.publisher} | Rating: ${f.rating} | URL: ${f.url} | Claim: ${f.claim.slice(0, 100)}...`
+            )
+            .join("\n")
+        : "";
 
-SOURCES: Web, News, PolitiFact, Snopes, social media (valid for breaking news).
+    const userPrompt = `You are a fact-checking analyst. Give ACCURATE verdicts. Avoid UNVERIFIED when evidence exists.
 
-STRICT RULES — follow exactly:
-1. ONLY evaluate claims the user ACTUALLY made. Do NOT introduce facts the claim did not mention, and do NOT penalize for them. If the claim says "Crew-12 launched with X, Y, Z" — verify X, Y, Z. Ignore extraneous details you infer.
-2. Core claim = main factual assertions (who, what, when, where). If MULTIPLE sources confirm the core claim, verdict MUST be TRUE or MOSTLY TRUE with score 5-30.
-3. ONE conflicting source vs. MANY confirming sources → trust the majority. A single outlier (e.g. different crew name from one article) does NOT override multiple corroborating sources.
-4. Tangential details (who praised whom, job titles, administrative roles) are NOT core. Do NOT downgrade to FALSE/MOSTLY FALSE for administrative asides. Reserve FALSE for when the CORE claim is contradicted.
-5. Do NOT invent errors. If the claim did not mention "Jared Isaacman" or "NASA Administrator," do not penalize for that.
-6. UNVERIFIED (use verdict "UNVERIFIED" with score 50) when ANY of these apply — use ONE verdict "UNVERIFIED" for all:
-   - Claim lacks subject, is too vague, or too short (e.g. "obama bad", "it happened", 2–3 words with no verifiable assertion)
-   - Not a factual claim: commands (e.g. "git push", "npm install"), code snippets, keyboard shortcuts
-   - Questions instead of claims (e.g. "Is it true?", "What about X?")
-   - Random words, gibberish, or off-topic input
-   - Search results are sparse, irrelevant, or lack enough coverage to verify
-   - Claim is about very recent events with insufficient fact-check coverage yet
-   - Cannot determine truthfulness from available sources
-   Explain briefly why (e.g. "Not enough information to verify — [reason]").
-7. 48-HOUR WINDOW: We only search the past 48 hours. If you find sufficient evidence → TRUE/FALSE. If insufficient evidence for any reason → UNVERIFIED.
+PRIORITY 1 — If Google Fact Check API returned results above, USE THEM. Map their ratings: False/Pants on Fire → FALSE (85-95); True/Mostly True → TRUE/MOSTLY TRUE (5-25); Half True/Mixed → MOSTLY FALSE or MIXED (60-75). Do NOT return UNVERIFIED when Fact Check API has verdicts.
 
-Claim to verify: "${claim}"
+PRIORITY 2 — Search results (Web, News, PolitiFact, Snopes, FactCheck). If multiple sources corroborate the core claim → TRUE/MOSTLY TRUE. If sources debunk or contradict → FALSE/MOSTLY FALSE.
 
-Search results — use these exact link URLs for timeline nodes:
+PRIORITY 3 — Use your knowledge for well-known claims (e.g. Epstein death, common conspiracy theories). When the claim matches a widely-debunked pattern and sources support that, return FALSE. Do NOT default to UNVERIFIED just because search is sparse.
+
+UNVERIFIED (50) ONLY when: claim is too vague/short, not a claim (commands, questions, gibberish), or genuinely no evidence in search OR fact-check API. If you have ANY fact-check or search evidence, prefer a definitive verdict.
+
+Claim: "${claim}"
+
+${factCheckContext}
+
+SEARCH RESULTS (use these links for timeline):
 ${searchContextText || "No search results found."}
 
-Verdict: TRUE/MOSTLY TRUE (5-30) when verified; FALSE/MOSTLY FALSE (70-100) when contradicted; UNVERIFIED (50) for everything else (insufficient info, vague claim, commands, questions, too recent, unclear).
+RULES: Only evaluate what the user claimed. Do not invent errors. Trust majority of sources. Core claim = who/what/when/where.
+Verdict: TRUE/MOSTLY TRUE (5-30) | FALSE/MOSTLY FALSE (70-100) | UNVERIFIED (50) only when truly unverifiable.
 Score 0-100: higher = more FALSE.
 
-Build a timeline. Use links from the list above. Return ONLY valid JSON, no markdown:
+Return ONLY valid JSON, no markdown:
 {"verdict":"string","score":number 0-100,"explanation":"string","timeline":[{"label":"short label","date":"date or N/A","description":"1-2 sentences","link":"URL or empty string"}]}`;
 
     const bedrockBody = {
@@ -269,10 +364,51 @@ Build a timeline. Use links from the list above. Return ONLY valid JSON, no mark
         link: typeof t.link === "string" ? t.link : "",
       }));
 
+    let verdict = typeof parsed.verdict === "string" ? parsed.verdict : "UNVERIFIED";
+    let score = typeof parsed.score === "number" ? Math.min(100, Math.max(0, parsed.score)) : 50;
+    let explanation = typeof parsed.explanation === "string" ? parsed.explanation : "";
+
+    // Override UNVERIFIED when Fact Check API has clear verdicts
+    if (
+      factCheckRes.length > 0 &&
+      verdict.toUpperCase().includes("UNVERIFIED")
+    ) {
+      const ratings = factCheckRes.map((f) => f.rating.toLowerCase());
+      const falseIndicators = ["false", "pants on fire", "pants-fire", "full flop", "fake", "hoax", "debunk", "misleading"];
+      const trueIndicators = ["true", "mostly true", "correct", "accurate", "promise kept"];
+      const falseCount = ratings.filter((r) => falseIndicators.some((i) => r.includes(i))).length;
+      const trueCount = ratings.filter((r) => trueIndicators.some((i) => r.includes(i))).length;
+      if (falseCount > trueCount) {
+        verdict = "FALSE";
+        score = 90;
+        if (!explanation) {
+          explanation = `Fact-checkers (${factCheckRes.slice(0, 3).map((f) => f.publisher).join(", ")}) rate this claim as false.`;
+        }
+      } else if (trueCount > falseCount) {
+        verdict = "TRUE";
+        score = 15;
+        if (!explanation) {
+          explanation = `Fact-checkers rate this claim as true or mostly true.`;
+        }
+      }
+    }
+
+    // Override UNVERIFIED when PolitiFact/Snopes/FactCheck snippets contain clear verdicts
+    if (verdict.toUpperCase().includes("UNVERIFIED")) {
+      const snippetVerdict = verdictFromSnippets(uniqueResults, ["PolitiFact", "Snopes", "FactCheck", "FactCheck.org"]);
+      if (snippetVerdict) {
+        verdict = snippetVerdict.verdict;
+        score = snippetVerdict.score;
+        if (!explanation) {
+          explanation = `Fact-check search results indicate this claim has been rated ${snippetVerdict.verdict}.`;
+        }
+      }
+    }
+
     const result: TextAnalysisResult = {
-      verdict: typeof parsed.verdict === "string" ? parsed.verdict : "UNVERIFIED",
-      score: typeof parsed.score === "number" ? Math.min(100, Math.max(0, parsed.score)) : 0,
-      explanation: typeof parsed.explanation === "string" ? parsed.explanation : "",
+      verdict,
+      score,
+      explanation,
       timeline: timelineNodes,
       pageResults: uniqueResults,
     };

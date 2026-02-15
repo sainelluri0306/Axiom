@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 
 type PageResultItem = {
@@ -38,6 +38,8 @@ function getDomain(link: string): string {
 export default function TestUrlPage() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
+  const timelineContainerRef = useRef<HTMLDivElement>(null);
+  const firstMarkerRef = useRef<HTMLDivElement>(null);
   const [rawResponse, setRawResponse] = useState<{
     status: number;
     ok: boolean;
@@ -66,6 +68,31 @@ export default function TestUrlPage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    const updateLinePosition = () => {
+      if (firstMarkerRef.current && timelineContainerRef.current) {
+        const markerRect = firstMarkerRef.current.getBoundingClientRect();
+        const containerRect = timelineContainerRef.current.getBoundingClientRect();
+        const markerCenterX = markerRect.left + markerRect.width / 2;
+        const lineLeft = markerCenterX - containerRect.left;
+        timelineContainerRef.current.style.setProperty("--timeline-line-left", `${lineLeft}px`);
+      }
+    };
+    const timeoutId = setTimeout(() => requestAnimationFrame(updateLinePosition), 100);
+    window.addEventListener("resize", updateLinePosition);
+    const observer = timelineContainerRef.current
+      ? new MutationObserver(() => requestAnimationFrame(updateLinePosition))
+      : null;
+    if (timelineContainerRef.current && observer) {
+      observer.observe(timelineContainerRef.current, { childList: true, subtree: true });
+    }
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener("resize", updateLinePosition);
+      observer?.disconnect();
+    };
+  }, [rawResponse?.body?.timeline]);
 
   return (
     <div className="min-h-screen bg-noir-bg text-zinc-100 p-6 font-sans">
@@ -187,19 +214,25 @@ export default function TestUrlPage() {
                 )}
               </div>
 
-              {/* Timeline */}
-              {rawResponse.body.timeline &&
-                rawResponse.body.timeline.length > 0 && (
-                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                    <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-4">
-                      Timeline — findings
-                    </span>
-                    <div className="relative flex flex-col pl-0">
-                      <div
-                        className="absolute left-[calc(5.5rem+1rem+12px)] top-6 bottom-6 w-px bg-zinc-600"
-                        aria-hidden
-                      />
-                      {rawResponse.body.timeline.map((node, i) => (
+              {/* Timeline — same as test page */}
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6">
+                <span className="text-xs uppercase tracking-wider text-zinc-500 block mb-6 font-bold">
+                  Timeline — findings
+                </span>
+                <div ref={timelineContainerRef} className="relative flex flex-col pl-0 timeline-container">
+                  {rawResponse.body?.timeline && rawResponse.body.timeline.length > 0 ? (
+                    rawResponse.body.timeline.map((node, i) => {
+                      const explanation = rawResponse.body.explanation ?? "";
+                      const pageResults = rawResponse.body.pageResults ?? [];
+                      const xLink = pageResults.find((p) => {
+                        try {
+                          const host = new URL(p.link).hostname.toLowerCase();
+                          return host === "x.com" || host === "twitter.com";
+                        } catch {
+                          return false;
+                        }
+                      });
+                      return (
                         <div
                           key={i}
                           className="grid grid-cols-[5.5rem_24px_1fr] gap-4 items-start py-4 first:pt-0 last:pb-0"
@@ -211,7 +244,8 @@ export default function TestUrlPage() {
                           </div>
                           <div className="relative flex justify-center pt-1.5 shrink-0">
                             <div
-                              className="relative z-10 h-3 w-3 shrink-0 rounded-full border-2 border-zinc-500 bg-noir-bg"
+                              ref={i === 0 ? firstMarkerRef : null}
+                              className="relative z-10 h-3 w-3 shrink-0 rounded-full border-2 border-zinc-500 bg-noir-bg timeline-marker"
                               aria-hidden
                             />
                           </div>
@@ -219,25 +253,97 @@ export default function TestUrlPage() {
                             <p className="text-xs uppercase tracking-wider text-zinc-500 mb-0.5">
                               {node.label}
                             </p>
-                            <p className="text-sm text-zinc-400 leading-relaxed">
-                              {node.description}
-                            </p>
-                            {node.link && (
-                              <a
-                                href={node.link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-zinc-500 hover:text-zinc-400 transition-colors block mt-1"
-                              >
-                                Source: {getDomain(node.link)}
-                              </a>
+                            {i === 0 ? (
+                              <>
+                                <p className="text-sm font-medium text-zinc-300 mb-1">Context</p>
+                                <p className="text-sm text-zinc-400 leading-relaxed mb-2">
+                                  {node.description || explanation || "Context not available from this source."}
+                                </p>
+                                <div className="text-xs text-zinc-500">
+                                  {xLink && (
+                                    <div className="mb-1">
+                                      <a
+                                        href={xLink.link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="hover:text-zinc-400 transition-colors block"
+                                      >
+                                        Original post on X ↗
+                                      </a>
+                                    </div>
+                                  )}
+                                  {node.link && (
+                                    <div className="mb-2">
+                                      <a
+                                        href={node.link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="hover:text-zinc-400 transition-colors block"
+                                      >
+                                        Source: {getDomain(node.link)}
+                                      </a>
+                                    </div>
+                                  )}
+                                  <p className="text-xs text-zinc-500 mt-2 italic">
+                                    Key finding from our search.
+                                  </p>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-sm text-zinc-400 leading-relaxed mb-2">
+                                  {node.description}
+                                </p>
+                                {node.link && (
+                                  <a
+                                    href={node.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-zinc-500 hover:text-zinc-400 transition-colors block"
+                                  >
+                                    Source: {getDomain(node.link)}
+                                  </a>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                      );
+                    })
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-[5.5rem_24px_1fr] gap-4 items-start py-4 opacity-50">
+                        <div className="rounded-md bg-white/95 px-2 py-1.5 text-center shrink-0 min-w-0">
+                          <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-800 whitespace-nowrap block">—</span>
+                        </div>
+                        <div className="relative flex justify-center pt-1.5 shrink-0">
+                          <div
+                            ref={firstMarkerRef}
+                            className="relative z-10 h-3 w-3 shrink-0 rounded-full border-2 border-zinc-500 bg-noir-bg timeline-marker"
+                            aria-hidden
+                          />
+                        </div>
+                        <div className="min-w-0 pl-2">
+                          <p className="text-xs uppercase tracking-wider text-zinc-500 mb-0.5">First Appearance</p>
+                          <p className="text-sm text-zinc-400 leading-relaxed">Submit an investigation to see the timeline</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-[5.5rem_24px_1fr] gap-4 items-start py-4 opacity-50">
+                        <div className="rounded-md bg-white/95 px-2 py-1.5 text-center shrink-0 min-w-0">
+                          <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-800 whitespace-nowrap block">—</span>
+                        </div>
+                        <div className="relative flex justify-center pt-1.5 shrink-0">
+                          <div className="relative z-10 h-3 w-3 shrink-0 rounded-full border-2 border-zinc-500 bg-noir-bg timeline-marker" aria-hidden />
+                        </div>
+                        <div className="min-w-0 pl-2">
+                          <p className="text-xs uppercase tracking-wider text-zinc-500 mb-0.5">Current Version</p>
+                          <p className="text-sm text-zinc-400 leading-relaxed">Timeline will appear here after analysis</p>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
 
               {/* Sources */}
               {rawResponse.body.pageResults &&

@@ -4,7 +4,49 @@ import * as cheerio from "cheerio";
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 
 const SERPAPI_BASE = "https://serpapi.com/search.json";
+const FACT_CHECK_API = "https://factchecktools.googleapis.com/v1alpha1/claims:search";
 const BEDROCK_MODEL_ID = "global.anthropic.claude-sonnet-4-20250514-v1:0";
+
+type FactCheckResult = {
+  claim: string;
+  rating: string;
+  publisher: string;
+  url: string;
+  title?: string;
+};
+
+async function fetchFactChecks(apiKey: string, query: string): Promise<FactCheckResult[]> {
+  try {
+    const res = await axios.get<{
+      claims?: Array<{
+        text?: string;
+        claimReview?: Array<{
+          publisher?: { name?: string };
+          url?: string;
+          title?: string;
+          textualRating?: string;
+        }>;
+      }>;
+    }>(FACT_CHECK_API, { params: { key: apiKey, query }, timeout: 15000 });
+    const results: FactCheckResult[] = [];
+    for (const c of res.data?.claims ?? []) {
+      for (const r of c.claimReview ?? []) {
+        if (r.url && r.textualRating) {
+          results.push({
+            claim: c.text ?? "",
+            rating: r.textualRating,
+            publisher: r.publisher?.name ?? "Unknown",
+            url: r.url,
+            title: r.title,
+          });
+        }
+      }
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
 
 export type AnalyzeUrlBody = {
   url: string;
@@ -31,7 +73,7 @@ export type UrlAnalysisResult = {
   explanation: string;
   timeline: TimelineNode[];
   pageResults: PageResultItem[];
-  scrapedContent?: { title: string; description: string; body: string };
+  scrapedContent?: { title: string; description: string; body: string; imageUrls?: string[] };
 };
 
 interface SerpOrganicResult {
@@ -62,8 +104,24 @@ const ARTICLE_SELECTORS = [
   ".main-content",
 ];
 
+type ScrapedContent = { title: string; description: string; body: string; imageUrls: string[] };
+
+/** Extract image URLs from HTML (og:image, twitter:image, img src with twimg). */
+function extractImageUrls($: ReturnType<typeof cheerio.load>, html?: string): string[] {
+  const urls: string[] = [];
+  const og = $('meta[property="og:image"]').attr("content");
+  const tw = $('meta[name="twitter:image"]').attr("content");
+  if (og && /^https?:\/\//.test(og)) urls.push(og.trim());
+  if (tw && /^https?:\/\//.test(tw) && !urls.includes(tw.trim())) urls.push(tw.trim());
+  $("img[src*='pbs.twimg.com'], img[src*='twimg']").each((_, el) => {
+    const src = $(el).attr("src");
+    if (src && /^https?:\/\//.test(src) && !urls.includes(src)) urls.push(src);
+  });
+  return urls;
+}
+
 /** Try X/Twitter oEmbed when direct scrape fails (X blocks scrapers). */
-async function fetchXViaOembed(tweetUrl: string): Promise<{ title: string; description: string; body: string } | null> {
+async function fetchXViaOembed(tweetUrl: string): Promise<ScrapedContent | null> {
   try {
     const cleanUrl = tweetUrl.replace(/\?.*$/, "");
     const oembedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(cleanUrl)}`;
@@ -76,17 +134,34 @@ async function fetchXViaOembed(tweetUrl: string): Promise<{ title: string; descr
     const $ = cheerio.load(html);
     const text = $("blockquote").text().trim() || $.text().trim();
     if (!text || text.length < 10) return null;
+    const imageUrls = extractImageUrls($);
+    // If oEmbed HTML has no img, try fetching tweet page for og:image (best effort)
+    if (imageUrls.length === 0) {
+      try {
+        const pageRes = await axios.get<string>(cleanUrl, {
+          timeout: 8000,
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; PaperTrails/1.0)" },
+          validateStatus: () => true,
+        });
+        const $page = cheerio.load(pageRes.data);
+        const extracted = extractImageUrls($page);
+        if (extracted.length > 0) imageUrls.push(...extracted);
+      } catch {
+        /* ignore */
+      }
+    }
     return {
       title: `Tweet by ${res.data?.author_name ?? "X user"}`,
       description: text.slice(0, 300),
       body: text,
+      imageUrls,
     };
   } catch {
     return null;
   }
 }
 
-async function scrapeUrl(url: string): Promise<{ title: string; description: string; body: string }> {
+async function scrapeUrl(url: string): Promise<ScrapedContent> {
   const res = await axios.get<string>(url, {
     timeout: 15000,
     headers: {
@@ -144,10 +219,12 @@ async function scrapeUrl(url: string): Promise<{ title: string; description: str
     if (oembed) return oembed;
   }
 
+  const imageUrls = extractImageUrls($);
   return {
     title: title.trim().slice(0, 500),
     description: description.trim().slice(0, 1000),
     body,
+    imageUrls,
   };
 }
 
@@ -264,6 +341,70 @@ function toPageResult(
   };
 }
 
+/** Extract verdict from fact-check result snippets. */
+/** Fetch Google Lens About This Image for an image URL. */
+async function fetchAboutThisImage(
+  apiKey: string,
+  imageUrl: string
+): Promise<{ headerTitle: string | null; pageResults: PageResultItem[] } | null> {
+  try {
+    const params = new URLSearchParams({
+      engine: "google_lens",
+      url: imageUrl,
+      api_key: apiKey,
+      type: "about_this_image",
+    });
+    const res = await axios.get<Record<string, unknown>>(
+      `${SERPAPI_BASE}?${params.toString()}`,
+      { timeout: 30000 }
+    );
+    const ati = res.data?.about_this_image as Record<string, unknown> | undefined;
+    if (!ati) return null;
+    const header = ati.header as Record<string, unknown> | undefined;
+    const headerTitle = typeof header?.title === "string" ? header.title : null;
+    const sections = (ati.sections as unknown[] | undefined) ?? [];
+    const pageResults: PageResultItem[] = [];
+    for (const sec of sections) {
+      const section = sec as Record<string, unknown>;
+      const results = (section.page_results as unknown[] | undefined) ?? [];
+      for (const r of results) {
+        const row = r as Record<string, unknown>;
+        pageResults.push({
+          date: typeof row.date === "string" ? row.date : "N/A",
+          link: typeof row.link === "string" ? row.link : "",
+          title: typeof row.title === "string" ? row.title : "Unknown",
+          snippet: typeof row.snippet === "string" ? row.snippet : null,
+          source: "About This Image",
+        });
+      }
+    }
+    return pageResults.length > 0 ? { headerTitle, pageResults } : null;
+  } catch {
+    return null;
+  }
+}
+
+function verdictFromSnippets(
+  results: PageResultItem[],
+  factCheckSources: string[]
+): { verdict: string; score: number } | null {
+  const combined = results
+    .filter((p) => factCheckSources.includes(p.source))
+    .map((p) => `${p.title} ${p.snippet ?? ""}`)
+    .join(" ")
+    .toLowerCase();
+  if (!combined) return null;
+  const falseMatch = /(?:rated?|rate|rates)\s+(?:as\s+)?(?:false|pants\s*[- ]?on\s*fire|full\s*flop)|(?:false|pants\s*on\s*fire|debunked|fake|hoax|misleading)/.test(combined) ||
+    /\b(?:false|debunked|misleading|incorrect)\b.*(?:politifact|snopes|factcheck)/.test(combined);
+  const trueMatch = /(?:rated?|rate|rates)\s+(?:as\s+)?(?:true|mostly\s*true|promise\s*kept)|(?:true|mostly\s*true|correct|accurate)/.test(combined) ||
+    /\b(?:true|mostly\s*true|correct)\b.*(?:politifact|snopes|factcheck)/.test(combined);
+  const mixedMatch = /(?:half\s*true|mixed|partly\s*true|partly\s*false)/.test(combined);
+  if (falseMatch && !trueMatch) return { verdict: "FALSE", score: 88 };
+  if (trueMatch && !falseMatch) return { verdict: "TRUE", score: 15 };
+  if (mixedMatch && !falseMatch && !trueMatch) return { verdict: "MOSTLY FALSE", score: 65 };
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Partial<AnalyzeUrlBody>;
@@ -322,26 +463,56 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build search query — for tweets, use the claim text (body/description), not "Tweet by X"
+    // Build search query — for image tweets, use title + description as claim; else body/description
     const isTweet = /^Tweet by /i.test(scraped.title) || scraped.body?.includes("pic.twitter.com");
-    let searchQuery = isTweet
-      ? (scraped.body || scraped.description || scraped.title).slice(0, 200)
-      : scraped.title || scraped.description?.slice(0, 100) || scraped.body?.slice(0, 150) || url;
+    const hasImage = (scraped.imageUrls?.length ?? 0) > 0;
+    const isImageTweet = isTweet && hasImage;
+    let searchQuery = isImageTweet
+      ? `${scraped.title} ${scraped.description}`.trim().slice(0, 200) || scraped.body?.slice(0, 150)
+      : isTweet
+        ? (scraped.body || scraped.description || scraped.title).slice(0, 200)
+        : scraped.title || scraped.description?.slice(0, 100) || scraped.body?.slice(0, 150) || url;
     searchQuery = searchQuery.replace(/https?:\/\/\S+|pic\.twitter\.com\/\S+/g, "").trim() || searchQuery;
 
-    // —— Step B: Search web + news + Politifact + Snopes ——
-    const [generalRes, newsRes, politifactRes, snopesRes] = await Promise.all([
-      runSerpSearch(apiKey, searchQuery, { as_qdr: "d2" }),
-      runSerpNewsSearch(apiKey, searchQuery),
-      runSerpSearch(apiKey, `site:politifact.com ${searchQuery}`),
-      runSerpSearch(apiKey, `site:snopes.com ${searchQuery}`),
-    ]);
+    // —— Step B1: If tweet has image, run Google Lens About This Image ——
+    let aboutThisImageResults: PageResultItem[] = [];
+    let aboutThisImageHeader: string | null = null;
+    if (isTweet && hasImage && scraped.imageUrls && scraped.imageUrls[0]) {
+      const ati = await fetchAboutThisImage(apiKey, scraped.imageUrls[0]);
+      if (ati) {
+        aboutThisImageHeader = ati.headerTitle;
+        aboutThisImageResults = ati.pageResults;
+      }
+    }
+
+    // —— Step B2: Google Fact Check API + SerpAPI ——
+    const factCheckKey = process.env.GOOGLE_FACT_CHECK_API_KEY?.trim();
+    const shortQuery = searchQuery.length > 80 ? searchQuery.slice(0, 80) : searchQuery;
+    const [factCheckRes1, factCheckRes2, generalRes, newsRes, factCheckSearchRes, politifactRes, snopesRes, factcheckOrgRes] =
+      await Promise.all([
+        factCheckKey ? fetchFactChecks(factCheckKey, searchQuery) : Promise.resolve([] as FactCheckResult[]),
+        factCheckKey && searchQuery !== shortQuery ? fetchFactChecks(factCheckKey, shortQuery) : Promise.resolve([] as FactCheckResult[]),
+        runSerpSearch(apiKey, searchQuery, { as_qdr: "y1" }), // 1 year — older fact-checks matter
+        runSerpNewsSearch(apiKey, searchQuery),
+        runSerpSearch(apiKey, `${searchQuery} fact check`),
+        runSerpSearch(apiKey, `site:politifact.com ${searchQuery}`),
+        runSerpSearch(apiKey, `site:snopes.com ${searchQuery}`),
+        runSerpSearch(apiKey, `site:factcheck.org ${searchQuery}`),
+      ]);
+
+    const factCheckRes: FactCheckResult[] = [...factCheckRes1];
+    for (const f of factCheckRes2) {
+      if (!factCheckRes.some((e) => e.url === f.url)) factCheckRes.push(f);
+    }
 
     const pageResults: PageResultItem[] = [
+      ...aboutThisImageResults.slice(0, 12),
       ...generalRes.slice(0, 12).map((r) => toPageResult(r, "Web")),
       ...newsRes.slice(0, 10).map((r) => toPageResult(r, "News")),
+      ...factCheckSearchRes.slice(0, 8).map((r) => toPageResult(r, "FactCheck")),
       ...politifactRes.slice(0, 8).map((r) => toPageResult(r, "PolitiFact")),
       ...snopesRes.slice(0, 8).map((r) => toPageResult(r, "Snopes")),
+      ...factcheckOrgRes.slice(0, 8).map((r) => toPageResult(r, "FactCheck.org")),
     ];
 
     const seen = new Set<string>();
@@ -380,25 +551,45 @@ export async function POST(request: NextRequest) {
       )
       .join("\n");
 
-    const userPrompt = `You are a fact-checking analyst. A user submitted a URL. We scraped the page content below.
+    const factCheckContext =
+      factCheckRes.length > 0
+        ? `\n\nGOOGLE FACT CHECK API (authoritative — USE THESE):\n` +
+          factCheckRes
+            .slice(0, 10)
+            .map((f) => `- ${f.publisher}: ${f.rating} | ${f.url}`)
+            .join("\n")
+        : "";
+
+    const imageContext =
+      hasImage && aboutThisImageResults.length > 0
+        ? `\n\nIMAGE IN POST (Google Lens About This Image): The tweet/page contains an image. We ran reverse image search. Use this to verify if the image matches the claim/caption.
+${aboutThisImageHeader ? `Header: ${aboutThisImageHeader}` : ""}
+Pages where this image appears (from About This Image):\n` +
+          aboutThisImageResults
+            .slice(0, 10)
+            .map((p) => `- ${p.title} | ${p.date} | ${p.snippet ?? ""} | ${p.link}`)
+            .join("\n")
+        : hasImage && scraped.imageUrls?.[0]
+          ? `\n\nIMAGE IN POST: The tweet contains an image (${scraped.imageUrls[0]}). No About This Image data was found — use search results to verify the claim.`
+          : "";
+
+    const userPrompt = `You are a fact-checking analyst. Give ACCURATE verdicts. Avoid UNVERIFIED when evidence exists. A user submitted a URL. We scraped the page content below.${isImageTweet ? " This is an image tweet: use the title/caption as the claim and verify against the image's About This Image context and search results." : ""}
 
 SCRAPED PAGE (from ${url}):
 Title: ${scraped.title || "(none)"}
 Description: ${scraped.description || "(none)"}
 Body (excerpt): ${scraped.body || "(none)"}
+${hasImage ? `Image URL(s): ${scraped.imageUrls?.slice(0, 3).join(", ") || "(extracted)"}` : ""}
+${imageContext}
 
-SEARCH RESULTS (Web, News, PolitiFact, Snopes — use these links for timeline):
+SEARCH RESULTS:
 ${searchContextText || "No search results found."}
+${factCheckContext}
 
-CRITICAL: If the scraped URL is from PolitiFact, Snopes, or another fact-checker (politifact.com, snopes.com, factcheck.org, etc.), the page ITSELF contains their verdict. The scraped content tells you what claim they evaluated and whether they rated it True, False, Mostly True, etc. USE THEIR VERDICT. Do NOT return UNVERIFIED when a fact-checker has already given a clear verdict. Example: if PolitiFact says "We rate this False" or the title/description says "That wasn't Liam... It wasn't Conejo Ramos", the verdict is FALSE (score 80-95).
-
-RULES:
-1. Fact-checker pages: Use the verdict stated in the scraped content. FALSE if they say False; TRUE if they say True; map their ratings to ours.
-2. Other pages/tweets: Extract the main factual claims and verify against search results.
-3. Widely-debunked conspiracy claims (e.g. "Epstein alive", "Epstein Israel/Tel Aviv", "faked death") have been fact-checked as FALSE by PolitiFact, Snopes, and major outlets. If the claim matches such patterns and search results or your knowledge indicate it is false, return FALSE (80-95), not UNVERIFIED.
-4. TRUE/MOSTLY TRUE (5-30) if corroborated; FALSE/MOSTLY FALSE (70-100) if contradicted or debunked.
-5. UNVERIFIED (50) only if: scraped content is empty/unclear, not a factual article, or no verdict/evidence available.
-6. Always provide an explanation and timeline. Use links from search results for timeline nodes.
+PRIORITY 1: If Google Fact Check API returned results above, USE their ratings. False/Pants on Fire → FALSE (85-95); True → TRUE (5-25). Do NOT return UNVERIFIED when Fact Check API has verdicts.
+PRIORITY 2: If scraped URL is from PolitiFact/Snopes/factcheck.org, the page contains their verdict — use it.
+PRIORITY 3: Extract claims from scraped content; verify against search results. Widely-debunked claims (Epstein alive, etc.) → FALSE when evidence supports.
+UNVERIFIED only when: empty content, not a claim, or genuinely no evidence. If you have ANY fact-check or search evidence, give a definitive verdict.
 
 Verdict: TRUE/MOSTLY TRUE | FALSE/MOSTLY FALSE | UNVERIFIED.
 Score 0-100: higher = more FALSE.
@@ -492,13 +683,50 @@ Return ONLY valid JSON, no markdown:
       }
     }
 
+    // Override: Google Fact Check API has verdicts but Claude returned UNVERIFIED
+    if (verdict.toUpperCase().includes("UNVERIFIED") && factCheckRes.length > 0) {
+      const ratings = factCheckRes.flatMap((f) =>
+        (f.rating || "").toLowerCase().split(/[\s,]+/)
+      );
+      const falseIndicators = ["false", "pants on fire", "pants-on-fire", "full flop", "lie", "debunk", "misleading"];
+      const trueIndicators = ["true", "correct", "accurate", "mostly true"];
+      const hasFalse = ratings.some((r) => falseIndicators.some((i) => r.includes(i)));
+      const hasTrue = ratings.some((r) => trueIndicators.some((i) => r.includes(i)));
+      if (hasFalse && !hasTrue) {
+        verdict = "FALSE";
+        score = Math.max(score, 85);
+        explanation = `Fact-check sources rate this as false. ${explanation}`;
+      } else if (hasTrue && !hasFalse) {
+        verdict = "TRUE";
+        score = Math.min(score, 25);
+        explanation = `Fact-check sources support this claim. ${explanation}`;
+      }
+    }
+
+    // Override: PolitiFact/Snopes/FactCheck snippets contain clear verdicts
+    if (verdict.toUpperCase().includes("UNVERIFIED")) {
+      const snippetVerdict = verdictFromSnippets(uniqueResults, ["PolitiFact", "Snopes", "FactCheck", "FactCheck.org"]);
+      if (snippetVerdict) {
+        verdict = snippetVerdict.verdict;
+        score = snippetVerdict.score;
+        if (!explanation) {
+          explanation = `Fact-check search results indicate this has been rated ${snippetVerdict.verdict}.`;
+        }
+      }
+    }
+
     const result: UrlAnalysisResult = {
       verdict,
       score,
       explanation,
       timeline: timelineNodes,
       pageResults: uniqueResults,
-      scrapedContent: scraped,
+      scrapedContent: {
+        title: scraped.title,
+        description: scraped.description,
+        body: scraped.body,
+        ...(scraped.imageUrls?.length ? { imageUrls: scraped.imageUrls } : {}),
+      },
     };
 
     return NextResponse.json(result);
