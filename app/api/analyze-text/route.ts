@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 import { getBackboardSecondOpinion } from "@/lib/backboard";
-import { getGeminiSecondOpinion } from "@/lib/gemini";
+import { filterRelevantFactChecks, getGeminiSecondOpinion } from "@/lib/gemini";
 
 const SERPAPI_BASE = "https://serpapi.com/search.json";
 const FACT_CHECK_API = "https://factchecktools.googleapis.com/v1alpha1/claims:search";
@@ -424,12 +424,23 @@ Return ONLY valid JSON, no markdown. Use this exact structure:
       }
     }
 
+    // Filter fact-check sources to only those relevant to the claim (Gemini)
+    const factCheckSourceNames = ["PolitiFact", "Snopes", "FactCheck", "FactCheck.org", "AFP"];
+    const nonFactCheck = uniqueResults.filter((p) => !factCheckSourceNames.includes(p.source));
+    const factChecks = uniqueResults.filter((p) => factCheckSourceNames.includes(p.source));
+    const filteredFactChecks = await filterRelevantFactChecks(
+      claim,
+      factChecks,
+      process.env.GEMINI_API_KEY?.trim()
+    );
+    const pageResultsFiltered = [...nonFactCheck, ...filteredFactChecks];
+
     const result: TextAnalysisResult = {
       verdict,
       score,
       explanation,
       timeline: timelineNodes,
-      pageResults: uniqueResults,
+      pageResults: pageResultsFiltered,
     };
 
     return NextResponse.json(result);
