@@ -68,7 +68,10 @@ export default function TestTextPage() {
             ← Home
           </Link>
           <Link href="/test" className="text-zinc-400 hover:text-white text-sm">
-            /test (image)
+            /test
+          </Link>
+          <Link href="/test-url" className="text-zinc-400 hover:text-white text-sm">
+            /test-url
           </Link>
           <h1 className="text-xl font-display tracking-wide">Text Detection — Test</h1>
         </div>
@@ -122,16 +125,17 @@ export default function TestTextPage() {
                   const score = rawResponse.body.score ?? 0;
                   const isTrueVerdict = verdict.includes("TRUE") && !verdict.includes("FALSE");
                   const isUnverifiable =
-                    verdict.includes("TOO RECENT") ||
                     verdict.includes("UNVERIFIED") ||
+                    verdict.includes("TOO RECENT") ||
                     verdict.includes("MIXED") ||
-                    verdict.includes("NO EVIDENCE");
-                  // For unverifiable: show "too early to verify" instead of a percentage.
+                    verdict.includes("NO EVIDENCE") ||
+                    verdict.includes("INSUFFICIENT") ||
+                    verdict.includes("INVALID");
                   if (isUnverifiable) {
                     return (
                       <div>
-                        <p className="text-sm text-amber-400/90 font-medium">This post is too early to verify</p>
-                        <p className="text-xs text-zinc-500 mt-1">Insufficient data — try again later when more coverage is available</p>
+                        <p className="text-sm text-amber-400/90 font-medium">Not enough information to verify</p>
+                        <p className="text-xs text-zinc-500 mt-1">We don&apos;t have enough info to verify this claim. Try a specific, factual claim with more detail.</p>
                       </div>
                     );
                   }

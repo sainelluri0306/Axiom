@@ -146,7 +146,10 @@ export default function TestPage() {
             ← Home
           </Link>
           <Link href="/test-text" className="text-zinc-400 hover:text-white text-sm">
-            /test-text (text only)
+            /test-text
+          </Link>
+          <Link href="/test-url" className="text-zinc-400 hover:text-white text-sm">
+            /test-url
           </Link>
           <h1 className="text-xl font-display tracking-wide">Analyze API — Test</h1>
         </div>

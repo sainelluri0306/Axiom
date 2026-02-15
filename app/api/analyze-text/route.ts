@@ -189,14 +189,23 @@ STRICT RULES — follow exactly:
 3. ONE conflicting source vs. MANY confirming sources → trust the majority. A single outlier (e.g. different crew name from one article) does NOT override multiple corroborating sources.
 4. Tangential details (who praised whom, job titles, administrative roles) are NOT core. Do NOT downgrade to FALSE/MOSTLY FALSE for administrative asides. Reserve FALSE for when the CORE claim is contradicted.
 5. Do NOT invent errors. If the claim did not mention "Jared Isaacman" or "NASA Administrator," do not penalize for that.
-6. 48-HOUR WINDOW: We only search the past 48 hours. If the claim is about recent events AND you find sufficient evidence/sources that clearly corroborate or contradict it → proceed with TRUE/MOSTLY TRUE or FALSE/MOSTLY FALSE. If the claim is within 48 hours BUT search results are sparse, irrelevant, or lack enough coverage to verify → use verdict "TOO RECENT TO VALIDATE" with score 50. Do NOT guess when evidence is insufficient. Explain: "This claim appears to be about very recent events. There is not enough coverage or fact-checking available yet to validate it. Try again in a few hours or days when more sources have reported on this."
+6. UNVERIFIED (use verdict "UNVERIFIED" with score 50) when ANY of these apply — use ONE verdict "UNVERIFIED" for all:
+   - Claim lacks subject, is too vague, or too short (e.g. "obama bad", "it happened", 2–3 words with no verifiable assertion)
+   - Not a factual claim: commands (e.g. "git push", "npm install"), code snippets, keyboard shortcuts
+   - Questions instead of claims (e.g. "Is it true?", "What about X?")
+   - Random words, gibberish, or off-topic input
+   - Search results are sparse, irrelevant, or lack enough coverage to verify
+   - Claim is about very recent events with insufficient fact-check coverage yet
+   - Cannot determine truthfulness from available sources
+   Explain briefly why (e.g. "Not enough information to verify — [reason]").
+7. 48-HOUR WINDOW: We only search the past 48 hours. If you find sufficient evidence → TRUE/FALSE. If insufficient evidence for any reason → UNVERIFIED.
 
 Claim to verify: "${claim}"
 
 Search results — use these exact link URLs for timeline nodes:
 ${searchContextText || "No search results found."}
 
-Decision: (a) Enough sources to verify → TRUE/MOSTLY TRUE (5-30) or FALSE/MOSTLY FALSE (70-100). (b) Claim is recent but insufficient evidence → TOO RECENT TO VALIDATE (50). (c) Unclear → MIXED/UNVERIFIED (40-60).
+Verdict: TRUE/MOSTLY TRUE (5-30) when verified; FALSE/MOSTLY FALSE (70-100) when contradicted; UNVERIFIED (50) for everything else (insufficient info, vague claim, commands, questions, too recent, unclear).
 Score 0-100: higher = more FALSE.
 
 Build a timeline. Use links from the list above. Return ONLY valid JSON, no markdown:
