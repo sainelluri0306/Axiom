@@ -1,5 +1,9 @@
 # Paper Trails
 
+Built by Team Axiom  
+Hack_NCState 2026  
+Srujan Ponnapalli · Krish Kathpalia · Sai Nelluri
+
 **Paper Trails** is a forensic intelligence engine designed to combat the **context collapse** of the modern internet. In an era where AI detectors rely on opaque, error-prone probability scores to flag misinformation, Paper Trails operates on a singular, irrefutable axiom:
 
 > **Truth has a timeline.**
